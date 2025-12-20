@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dsa"
+version = "1.0.0"
+description = "Post-Quantum Digital Signature Algorithms - ML-DSA (FIPS 204) & SLH-DSA (FIPS 205)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "Implementation", email = "example@example.com"}
+]
+keywords = [
+    "cryptography",
+    "post-quantum",
+    "digital-signature",
+    "ml-dsa",
+    "slh-dsa",
+    "fips-204",
+    "fips-205",
+    "dilithium",
+    "sphincs"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security :: Cryptography",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src/py"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/py"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v"

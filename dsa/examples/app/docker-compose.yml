@@ -1,0 +1,74 @@
+# Post-Quantum DSA Demo Application (C++)
+#
+# Architecture:
+#   - server1: Verification server (holds public key)
+#   - server2: Verification server (holds public key)
+#   - client:  Signing client (holds secret key)
+#
+# The client generates a key pair, registers the public key with
+# both servers, then signs messages and sends them for verification.
+
+services:
+  # Verification Server 1
+  server1:
+    build:
+      context: ../..
+      dockerfile: examples/app/Dockerfile.cpp
+    command: >
+      ./build/demo_server
+      --name "Server-1"
+      --port 5001
+      --algorithm ${ALGORITHM:-mldsa44}
+    ports:
+      - "5001:5001"
+    networks:
+      - dsa-network
+    stop_grace_period: 2s
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "5001"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  # Verification Server 2
+  server2:
+    build:
+      context: ../..
+      dockerfile: examples/app/Dockerfile.cpp
+    command: >
+      ./build/demo_server
+      --name "Server-2"
+      --port 5002
+      --algorithm ${ALGORITHM:-mldsa44}
+    ports:
+      - "5002:5002"
+    networks:
+      - dsa-network
+    stop_grace_period: 2s
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "5002"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  # Signing Client
+  client:
+    build:
+      context: ../..
+      dockerfile: examples/app/Dockerfile.cpp
+    command: >
+      ./build/demo_client
+      --algorithm ${ALGORITHM:-mldsa44}
+      --servers server1:5001,server2:5002
+      --messages 3
+    depends_on:
+      server1:
+        condition: service_healthy
+      server2:
+        condition: service_healthy
+    networks:
+      - dsa-network
+
+networks:
+  dsa-network:
+    driver: bridge

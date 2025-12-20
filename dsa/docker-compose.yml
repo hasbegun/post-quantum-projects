@@ -1,0 +1,61 @@
+services:
+  dsa:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dsa
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+    command: python -m pytest tests/ -v
+
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dsa-test
+    command: python -m pytest tests/ -v --tb=short
+
+  test-mldsa:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dsa-test-mldsa
+    command: python -m pytest tests/test_mldsa.py -v --tb=short
+
+  test-slhdsa:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dsa-test-slhdsa
+    command: python -m pytest tests/test_slhdsa.py -v --tb=short
+
+  shell:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dsa-shell
+    stdin_open: true
+    tty: true
+    command: python
+
+  # C++ services
+  dsa-cpp:
+    build:
+      context: .
+      dockerfile: Dockerfile.cpp
+    container_name: dsa-cpp
+
+  test-mldsa-cpp:
+    build:
+      context: .
+      dockerfile: Dockerfile.cpp
+    container_name: dsa-test-mldsa-cpp
+    command: ./build/test_mldsa
+
+  test-slhdsa-cpp:
+    build:
+      context: .
+      dockerfile: Dockerfile.cpp
+    container_name: dsa-test-slhdsa-cpp
+    command: ./build/test_slhdsa

@@ -84,7 +84,7 @@ The C++ SLH-DSA implementation demonstrates constant-time programming techniques
 ### Run All Tests
 
 ```bash
-cd /Users/innox/projects/q/dsa
+cd ~/dsa
 
 # Run all tests (Python + C++)
 make test

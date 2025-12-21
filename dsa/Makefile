@@ -1,8 +1,12 @@
 .PHONY: build build-py build-cpp test test-py test-cpp \
         test-mldsa test-slhdsa test-mldsa-cpp test-slhdsa-cpp \
         test-kat test-kat-mldsa test-kat-slhdsa \
-        dev shell demo-api demo-document demo-compare demo-cpp \
-        cert-mldsa cert-slhdsa clean help
+        dev shell clean help \
+        demo-api demo-document demo-compare demo-cpp demo-app demo-app-down \
+        cert-mldsa cert-slhdsa \
+        keygen keygen-cpp \
+        keygen-mldsa44 keygen-mldsa65 keygen-mldsa87 keygen-slhdsa keygen-slhdsa-small \
+        keygen-cpp-mldsa44 keygen-cpp-mldsa65 keygen-cpp-mldsa87 keygen-cpp-slhdsa keygen-cpp-slhdsa-small
 
 # Docker image names
 IMAGE_NAME_PY := dsa-py
@@ -33,11 +37,12 @@ help:
 	@echo "  make test-kat-slhdsa  - Run SLH-DSA NIST KAT tests"
 	@echo ""
 	@echo "Examples:"
-	@echo "  make demo-api     - API authentication (ML-DSA Python)"
-	@echo "  make demo-document- Document signing (SLH-DSA Python)"
-	@echo "  make demo-compare - Compare ML-DSA vs SLH-DSA (Python)"
-	@echo "  make demo-cpp     - Run C++ ML-DSA + SLH-DSA demo"
-	@echo "  make demo-app [ALG=<alg>] - Multi-container client/server demo"
+	@echo "  make demo-api      - API authentication (ML-DSA Python)"
+	@echo "  make demo-document - Document signing (SLH-DSA Python)"
+	@echo "  make demo-compare  - Compare ML-DSA vs SLH-DSA (Python)"
+	@echo "  make demo-cpp      - Run C++ ML-DSA + SLH-DSA demo"
+	@echo "  make demo-app [ALG=<alg>]  - Multi-container client/server demo"
+	@echo "  make demo-app-down - Stop and remove demo app containers"
 	@echo ""
 	@echo "Certificate Examples (C++):"
 	@echo "  make cert-mldsa   - ML-DSA certificate example"

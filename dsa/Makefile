@@ -194,7 +194,7 @@ keygen: build-py
 # C++ key generation (faster)
 keygen-cpp: build-cpp
 	@mkdir -p $(OUT)
-	docker run --rm -v $(PWD)/$(OUT):/keys $(IMAGE_NAME_CPP) ./build/generate_keys $(ALG) /keys $(CERT_OPTS)
+	docker run --rm -v $(PWD)/$(OUT):/keys $(IMAGE_NAME_CPP) ./build/keygen $(ALG) /keys $(CERT_OPTS)
 
 # Shortcut targets for common algorithms (Python)
 keygen-mldsa44: ALG=mldsa44
@@ -239,7 +239,7 @@ demo-compare: build-py
 	docker run --rm $(IMAGE_NAME_PY) python examples/py/comparison.py
 
 demo-cpp: build-cpp
-	docker run --rm $(IMAGE_NAME_CPP) ./build/mldsa_demo
+	docker run --rm $(IMAGE_NAME_CPP) ./build/dsa_demo
 
 # Certificate example targets (C++)
 cert-mldsa: build-cpp

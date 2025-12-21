@@ -168,7 +168,7 @@ make keygen-cpp ALG=mldsa65 OUT=./keys \
 ```bash
 # Generate keys with Docker directly
 docker run --rm -v $(pwd)/keys:/keys dsa-cpp \
-    ./build/generate_keys mldsa65 /keys \
+    ./build/keygen mldsa65 /keys \
     --cn "api.example.com" \
     --org "Example Corp" \
     --country "US" \
@@ -1293,7 +1293,7 @@ if __name__ == '__main__':
 ```bash
 # 1. Generate keys
 cd pq-nginx-demo
-docker run --rm -v $(pwd)/keys:/keys dsa-cpp ./build/generate_keys mldsa65 /keys
+docker run --rm -v $(pwd)/keys:/keys dsa-cpp ./build/keygen mldsa65 /keys
 
 # 2. Generate self-signed SSL certificate (for demo)
 mkdir -p nginx/ssl
@@ -1479,7 +1479,7 @@ localhost {
 **Running:**
 ```bash
 # Generate keys
-docker run --rm -v $(pwd)/keys:/keys dsa-cpp ./build/generate_keys mldsa65 /keys
+docker run --rm -v $(pwd)/keys:/keys dsa-cpp ./build/keygen mldsa65 /keys
 
 # Start services
 docker-compose up --build

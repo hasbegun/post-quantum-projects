@@ -26,7 +26,7 @@ COPY examples/app/ ./examples/app/
 # Create build directory and build only the demo executables
 RUN mkdir -p build && cd build && \
     cmake ../src/cpp -DCMAKE_BUILD_TYPE=Release && \
-    make -j$(nproc) demo_server demo_client generate_keys
+    make -j$(nproc) demo_server demo_client keygen dsa_demo
 
 # Default command
 CMD ["./build/demo_server", "--help"]

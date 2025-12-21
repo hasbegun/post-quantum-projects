@@ -262,9 +262,9 @@ docker run --rm dsa-cpp ./build/slhdsa_cert_example
 
 See [Certificate Guide](docs/CERTIFICATE_GUIDE.md) for complete documentation.
 
-### Example 5: Key Generation
+### Example 5: Key Generation with Certificate Parameters
 
-Generate post-quantum key pairs and save them to local files.
+Generate post-quantum key pairs with X.509-like certificate metadata, similar to OpenSSL.
 
 **Quick Start:**
 ```bash
@@ -275,16 +275,29 @@ make keygen-mldsa44
 make keygen-cpp-mldsa44
 ```
 
-**Custom Algorithm and Output Directory:**
+**With Certificate Parameters:**
 ```bash
-# Syntax: make keygen ALG=<algorithm> [OUT=<directory>]
-#         make keygen-cpp ALG=<algorithm> [OUT=<directory>]
-
-# Examples:
-make keygen ALG=mldsa65                      # Python, default ./keys/
-make keygen-cpp ALG=slh-shake-256f           # C++, default ./keys/
-make keygen-cpp ALG=slh-sha2-128f OUT=./my-keys  # Custom output dir
+# Generate keys with certificate metadata (like OpenSSL)
+make keygen-cpp ALG=mldsa65 \
+    CN=api.example.com \
+    ORG="Example Corp" \
+    COUNTRY=US \
+    STATE=California \
+    DAYS=730
 ```
+
+**Certificate Options:**
+| Option | Description | Example |
+|--------|-------------|---------|
+| `CN` | Common Name | `CN=api.example.com` |
+| `ORG` | Organization | `ORG="My Company"` |
+| `OU` | Organizational Unit | `OU=Engineering` |
+| `COUNTRY` | 2-letter country code | `COUNTRY=US` |
+| `STATE` | State or Province | `STATE=California` |
+| `LOCALITY` | City | `LOCALITY="San Francisco"` |
+| `EMAIL` | Email address | `EMAIL=admin@example.com` |
+| `DAYS` | Validity period | `DAYS=365` |
+| `SERIAL` | Serial number (hex) | `SERIAL=abc123` |
 
 **Available Algorithms:**
 | Algorithm | Type | Security | Signature Size |
@@ -312,28 +325,51 @@ make keygen-slhdsa-small     make keygen-cpp-slhdsa-small
 **Output Files:**
 ```
 keys/
-├── mldsa44_metadata.json      # Algorithm info and timestamp
-├── mldsa44_public.key         # 1,312 bytes - share this
-├── mldsa44_secret.key         # 2,560 bytes - KEEP SECRET!
-├── slh_shake_128f_metadata.json
-├── slh_shake_128f_public.key  # 32 bytes
-└── slh_shake_128f_secret.key  # 64 bytes
+├── mldsa65_certificate.json   # Certificate metadata (JSON)
+├── mldsa65_public.key         # 1,952 bytes - share this
+└── mldsa65_secret.key         # 4,032 bytes - KEEP SECRET!
 ```
 
-**View Key Metadata:**
+**Certificate JSON Format:**
 ```bash
-cat keys/mldsa65_metadata.json
+cat keys/mldsa65_certificate.json
 ```
 ```json
 {
+  "version": 1,
   "algorithm": "MLDSA65",
-  "type": "ML-DSA (FIPS 204)",
-  "created": "2025-12-18T23:19:00Z",
-  "public_key_size": 1952,
-  "secret_key_size": 4032,
-  "public_key_file": "mldsa65_public.key",
-  "secret_key_file": "mldsa65_secret.key"
+  "type": "ML-DSA",
+  "standard": "FIPS 204",
+  "subject": {
+    "commonName": "api.example.com",
+    "organization": "Example Corp",
+    "country": "US",
+    "state": "California",
+    "dn": "C=US, ST=California, O=Example Corp, CN=api.example.com"
+  },
+  "validity": {
+    "notBefore": "2025-12-20T10:00:00Z",
+    "notAfter": "2027-12-20T10:00:00Z",
+    "days": 730
+  },
+  "serialNumber": "1a2b3c4d5e6f7890",
+  "keyInfo": {
+    "publicKeySize": 1952,
+    "secretKeySize": 4032,
+    "signatureSize": 3309
+  }
 }
+```
+
+**Direct Docker Usage:**
+```bash
+# Using the keygen tool directly
+docker run --rm -v $(pwd)/keys:/keys dsa-cpp \
+    ./build/keygen mldsa65 /keys \
+    --cn "api.example.com" \
+    --org "Example Corp" \
+    --country "US" \
+    --days 730
 ```
 
 ### Example 6: Multi-Container Demo App
@@ -461,6 +497,7 @@ dsa/
 │   │       ├── hypertree.py     # Hypertree structure
 │   │       └── address.py       # ADRS address scheme
 │   └── cpp/                     # C++ implementation
+│       ├── main.cpp             # Key generation tool (keygen)
 │       ├── mldsa/               # ML-DSA (FIPS 204)
 │       │   ├── mldsa.hpp        # Main API
 │       │   ├── params.hpp       # Parameter sets
@@ -493,9 +530,9 @@ dsa/
 │   │   ├── comparison.py
 │   │   └── generate_keys.py     # Key generation tool
 │   ├── cpp/                     # C++ examples
+│   │   ├── demo.cpp             # ML-DSA & SLH-DSA demo
 │   │   ├── mldsa_certificate.cpp
-│   │   ├── slhdsa_certificate.cpp
-│   │   └── generate_keys.cpp    # Key generation tool
+│   │   └── slhdsa_certificate.cpp
 │   └── app/                     # Multi-container demo app
 │       ├── client.py            # Signing client (holds secret key)
 │       ├── server.py            # Verification server (holds public key)
@@ -579,9 +616,11 @@ bool valid = slh_verify(SLH_DSA_SHAKE_128f, message, sig, pk);
 | Command | Description |
 |---------|-------------|
 | `make help` | Show all available commands |
+| **Build** | |
 | `make build` | Build all Docker images |
 | `make build-py` | Build Python Docker image |
 | `make build-cpp` | Build C++ Docker image |
+| **Test** | |
 | `make test` | Run all tests (Python + C++) |
 | `make test-py` | Run all Python tests |
 | `make test-cpp` | Run all C++ tests |
@@ -592,21 +631,30 @@ bool valid = slh_verify(SLH_DSA_SHAKE_128f, message, sig, pk);
 | `make test-kat` | Run NIST KAT tests (C++) |
 | `make test-kat-mldsa` | Run ML-DSA NIST KAT tests |
 | `make test-kat-slhdsa` | Run SLH-DSA NIST KAT tests |
-| `make dev` | Run tests with mounted source |
-| `make shell` | Interactive Python shell |
-| `make demo-api` | API authentication example |
-| `make demo-document` | Document signing example |
-| `make demo-compare` | Algorithm comparison |
-| `make demo-cpp` | C++ ML-DSA + SLH-DSA demo |
+| **Demo** | |
+| `make demo-api` | API authentication example (Python) |
+| `make demo-document` | Document signing example (Python) |
+| `make demo-compare` | Algorithm comparison (Python) |
+| `make demo-cpp` | ML-DSA + SLH-DSA demo (C++) |
 | `make demo-app [ALG=<alg>]` | Multi-container client/server demo |
 | `make cert-mldsa` | ML-DSA certificate example (C++) |
 | `make cert-slhdsa` | SLH-DSA certificate example (C++) |
-| `make keygen ALG=<alg>` | Generate keys (Python) |
-| `make keygen-cpp ALG=<alg>` | Generate keys (C++, faster) |
+| **Key Generation** | |
+| `make keygen ALG=<alg> [options]` | Generate keys with cert params (Python) |
+| `make keygen-cpp ALG=<alg> [options]` | Generate keys with cert params (C++, faster) |
 | `make keygen-cpp-mldsa44` | Generate ML-DSA-44 keys (C++) |
 | `make keygen-cpp-mldsa65` | Generate ML-DSA-65 keys (C++) |
 | `make keygen-cpp-slhdsa` | Generate SLH-DSA-SHAKE-128f keys (C++) |
+| **Development** | |
+| `make dev` | Run tests with mounted source |
+| `make shell` | Interactive Python shell |
 | `make clean` | Remove Docker resources |
+
+**Key Generation Options:**
+```bash
+make keygen-cpp ALG=mldsa65 CN=example.com ORG="My Corp" DAYS=730
+```
+See [Example 5](#example-5-key-generation-with-certificate-parameters) for all certificate options.
 
 ---
 
@@ -656,7 +704,7 @@ For production use:
 
 ## Documentation
 
-- **[User's Manual](MANUAL.md)** - Complete guide for installation, usage, and integration:
+- **[User's Manual](docs/MANUAL.md)** - Complete guide for installation, usage, and integration:
   - Installation (Docker, C++, Python)
   - Key generation and management
   - Use cases: API auth, document signing, firmware signing

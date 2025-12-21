@@ -73,14 +73,28 @@ target_include_directories(test_slhdsa PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-# DSA demo executable (ML-DSA + SLH-DSA)
-add_executable(mldsa_demo
+# Key generation tool (main executable)
+add_executable(keygen
     main.cpp
 )
 
-target_link_libraries(mldsa_demo PRIVATE
+target_link_libraries(keygen PRIVATE
     mldsa
     slhdsa
+)
+
+# DSA demo executable
+add_executable(dsa_demo
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../examples/cpp/demo.cpp
+)
+
+target_link_libraries(dsa_demo PRIVATE
+    mldsa
+    slhdsa
+)
+
+target_include_directories(dsa_demo PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 # ML-DSA Certificate Example
@@ -109,19 +123,6 @@ target_include_directories(slhdsa_cert_example PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-# Key Generation Tool
-add_executable(generate_keys
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../examples/cpp/generate_keys.cpp
-)
-
-target_link_libraries(generate_keys PRIVATE
-    mldsa
-    slhdsa
-)
-
-target_include_directories(generate_keys PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
 
 # Install targets
 install(TARGETS mldsa slhdsa

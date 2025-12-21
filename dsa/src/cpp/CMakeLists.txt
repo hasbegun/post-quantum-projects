@@ -199,3 +199,14 @@ add_test(NAME mldsa_tests COMMAND test_mldsa)
 add_test(NAME slhdsa_tests COMMAND test_slhdsa)
 add_test(NAME mldsa_kat_tests COMMAND test_mldsa_kat)
 add_test(NAME slhdsa_kat_tests COMMAND test_slhdsa_kat)
+
+# Keygen Certificate Test executable
+add_executable(test_keygen
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../tests/cpp/test_keygen.cpp
+)
+
+target_include_directories(test_keygen PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+add_test(NAME keygen_tests COMMAND test_keygen)

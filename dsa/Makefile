@@ -1,6 +1,7 @@
 .PHONY: build build-py build-cpp test test-py test-cpp \
         test-mldsa test-slhdsa test-mldsa-cpp test-slhdsa-cpp \
         test-kat test-kat-mldsa test-kat-slhdsa \
+        test-keygen test-keygen-py test-keygen-cpp \
         dev shell clean help \
         demo-api demo-document demo-compare demo-cpp demo-app demo-app-down \
         cert-mldsa cert-slhdsa \
@@ -35,6 +36,11 @@ help:
 	@echo "  make test-kat         - Run all NIST KAT tests"
 	@echo "  make test-kat-mldsa   - Run ML-DSA NIST KAT tests"
 	@echo "  make test-kat-slhdsa  - Run SLH-DSA NIST KAT tests"
+	@echo ""
+	@echo "Keygen Certificate Tests:"
+	@echo "  make test-keygen      - Run all keygen certificate tests"
+	@echo "  make test-keygen-py   - Run Python keygen tests"
+	@echo "  make test-keygen-cpp  - Run C++ keygen certificate tests"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make demo-api      - API authentication (ML-DSA Python)"
@@ -124,6 +130,15 @@ test-kat-mldsa: build-cpp
 
 test-kat-slhdsa: build-cpp
 	docker run --rm $(IMAGE_NAME_CPP) ./build/test_slhdsa_kat
+
+# Keygen Certificate Tests
+test-keygen: test-keygen-py test-keygen-cpp
+
+test-keygen-py: build-py
+	docker run --rm $(IMAGE_NAME_PY) python -m pytest tests/py/test_keygen.py -v
+
+test-keygen-cpp: build-cpp
+	docker run --rm $(IMAGE_NAME_CPP) ./build/test_keygen
 
 # Development
 dev:

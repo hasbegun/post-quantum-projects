@@ -40,8 +40,9 @@ dev = [
     "pytest>=7.0.0",
 ]
 
-[tool.setuptools.packages.find]
-where = ["src/py"]
+[tool.setuptools]
+packages = ["dsa", "dsa.mldsa", "dsa.slhdsa"]
+package-dir = {"dsa" = "src/py", "dsa.mldsa" = "src/py/mldsa", "dsa.slhdsa" = "src/py/slhdsa"}
 
 [tool.pytest.ini_options]
 testpaths = ["tests/py"]

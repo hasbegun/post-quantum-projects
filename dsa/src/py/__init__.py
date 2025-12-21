@@ -1,19 +1,29 @@
 """
 Post-Quantum Digital Signature Algorithms (DSA)
 
-A unified implementation of NIST FIPS post-quantum signature standards:
-- ML-DSA (FIPS 204): Module-Lattice-Based Digital Signature Algorithm
-- SLH-DSA (FIPS 205): Stateless Hash-Based Digital Signature Algorithm
+This package provides implementations of NIST-standardized post-quantum
+digital signature algorithms:
 
-Usage:
-    # ML-DSA (fast, smaller signatures)
-    from dsa import MLDSA44, MLDSA65, MLDSA87
+- ML-DSA (FIPS 204) - Module-Lattice-Based Digital Signature Algorithm
+- SLH-DSA (FIPS 205) - Stateless Hash-Based Digital Signature Algorithm
 
-    # SLH-DSA (conservative, hash-based security)
+Example usage:
+
+    # ML-DSA
+    from dsa import MLDSA44
+    dsa = MLDSA44()
+    pk, sk = dsa.keygen()
+    sig = dsa.sign(sk, b"message")
+    valid = dsa.verify(pk, b"message", sig)
+
+    # SLH-DSA
     from dsa import slh_keygen, slh_sign, slh_verify, SLH_DSA_SHAKE_128f
+    sk, pk = slh_keygen(SLH_DSA_SHAKE_128f)
+    sig = slh_sign(SLH_DSA_SHAKE_128f, b"message", sk)
+    valid = slh_verify(SLH_DSA_SHAKE_128f, b"message", sig, pk)
 """
 
-# ML-DSA (FIPS 204) - Lattice-based
+# ML-DSA exports
 from .mldsa import (
     MLDSA,
     MLDSA44,
@@ -25,7 +35,7 @@ from .mldsa import (
     MLDSA87_PARAMS,
 )
 
-# SLH-DSA (FIPS 205) - Hash-based
+# SLH-DSA exports
 from .slhdsa import (
     slh_keygen,
     slh_sign,

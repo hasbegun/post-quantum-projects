@@ -480,7 +480,7 @@ Then try:
 ```
 dsa/
 ├── src/
-│   ├── py/dsa/                  # Python implementation
+│   ├── py/                      # Python package (dsa)
 │   │   ├── __init__.py          # Unified API exports
 │   │   ├── mldsa/               # ML-DSA implementation
 │   │   │   ├── mldsa.py         # Main MLDSA class

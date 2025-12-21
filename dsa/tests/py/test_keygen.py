@@ -106,7 +106,8 @@ class TestMLDSAKeyGeneration:
         from examples.py.generate_keys import generate_mldsa_keys, Subject, CertificateInfo
         with tempfile.TemporaryDirectory() as tmpdir:
             cert_info = CertificateInfo(subject=Subject())
-            pk, sk, cert = generate_mldsa_keys("mldsa44", tmpdir, cert_info)
+            output_prefix = os.path.join(tmpdir, "testkey")
+            pk, sk, cert = generate_mldsa_keys("mldsa44", output_prefix, cert_info)
 
             assert len(pk) == 1312  # ML-DSA-44 public key size
             assert len(sk) == 2560  # ML-DSA-44 secret key size
@@ -115,9 +116,9 @@ class TestMLDSAKeyGeneration:
             assert cert["standard"] == "FIPS 204"
 
             # Verify files exist
-            assert os.path.exists(os.path.join(tmpdir, "mldsa44_public.key"))
-            assert os.path.exists(os.path.join(tmpdir, "mldsa44_secret.key"))
-            assert os.path.exists(os.path.join(tmpdir, "mldsa44_certificate.json"))
+            assert os.path.exists(f"{output_prefix}_public.key")
+            assert os.path.exists(f"{output_prefix}_secret.key")
+            assert os.path.exists(f"{output_prefix}_certificate.json")
 
     def test_keygen_with_subject(self):
         """Test key generation with subject information"""
@@ -129,7 +130,8 @@ class TestMLDSAKeyGeneration:
                 country="US"
             )
             cert_info = CertificateInfo(subject=subject, validity_days=730)
-            pk, sk, cert = generate_mldsa_keys("mldsa65", tmpdir, cert_info)
+            output_prefix = os.path.join(tmpdir, "testkey")
+            pk, sk, cert = generate_mldsa_keys("mldsa65", output_prefix, cert_info)
 
             assert cert["subject"]["commonName"] == "api.example.com"
             assert cert["subject"]["organization"] == "Example Corp"
@@ -152,7 +154,8 @@ class TestMLDSAKeyGeneration:
         for level, (pk_size, sk_size, sig_size) in expected_sizes.items():
             with tempfile.TemporaryDirectory() as tmpdir:
                 cert_info = CertificateInfo(subject=Subject())
-                pk, sk, cert = generate_mldsa_keys(level, tmpdir, cert_info)
+                output_prefix = os.path.join(tmpdir, "testkey")
+                pk, sk, cert = generate_mldsa_keys(level, output_prefix, cert_info)
 
                 assert len(pk) == pk_size, f"{level} public key size"
                 assert len(sk) == sk_size, f"{level} secret key size"
@@ -167,7 +170,8 @@ class TestSLHDSAKeyGeneration:
         from examples.py.generate_keys import generate_slhdsa_keys, Subject, CertificateInfo
         with tempfile.TemporaryDirectory() as tmpdir:
             cert_info = CertificateInfo(subject=Subject())
-            pk, sk, cert = generate_slhdsa_keys("slh-shake-128f", tmpdir, cert_info)
+            output_prefix = os.path.join(tmpdir, "testkey")
+            pk, sk, cert = generate_slhdsa_keys("slh-shake-128f", output_prefix, cert_info)
 
             assert len(pk) == 32  # SLH-DSA public key size
             assert len(sk) == 64  # SLH-DSA secret key size
@@ -176,9 +180,9 @@ class TestSLHDSAKeyGeneration:
             assert cert["standard"] == "FIPS 205"
 
             # Verify files exist
-            assert os.path.exists(os.path.join(tmpdir, "slh_shake_128f_public.key"))
-            assert os.path.exists(os.path.join(tmpdir, "slh_shake_128f_secret.key"))
-            assert os.path.exists(os.path.join(tmpdir, "slh_shake_128f_certificate.json"))
+            assert os.path.exists(f"{output_prefix}_public.key")
+            assert os.path.exists(f"{output_prefix}_secret.key")
+            assert os.path.exists(f"{output_prefix}_certificate.json")
 
     def test_keygen_with_subject(self):
         """Test SLH-DSA key generation with subject information"""
@@ -190,7 +194,8 @@ class TestSLHDSAKeyGeneration:
                 email="security@example.com"
             )
             cert_info = CertificateInfo(subject=subject, validity_days=1825)
-            pk, sk, cert = generate_slhdsa_keys("slh-shake-256f", tmpdir, cert_info)
+            output_prefix = os.path.join(tmpdir, "testkey")
+            pk, sk, cert = generate_slhdsa_keys("slh-shake-256f", output_prefix, cert_info)
 
             assert cert["subject"]["commonName"] == "firmware-signer"
             assert cert["subject"]["organizationalUnit"] == "Security"
@@ -207,7 +212,8 @@ class TestCertificateJSONFormat:
         with tempfile.TemporaryDirectory() as tmpdir:
             subject = Subject(common_name="test")
             cert_info = CertificateInfo(subject=subject, validity_days=365)
-            pk, sk, cert = generate_mldsa_keys("mldsa44", tmpdir, cert_info)
+            output_prefix = os.path.join(tmpdir, "testkey")
+            pk, sk, cert = generate_mldsa_keys("mldsa44", output_prefix, cert_info)
 
             # Required top-level fields
             assert "version" in cert
@@ -247,7 +253,8 @@ class TestCertificateJSONFormat:
         from examples.py.generate_keys import generate_mldsa_keys, Subject, CertificateInfo
         with tempfile.TemporaryDirectory() as tmpdir:
             cert_info = CertificateInfo(subject=Subject(), validity_days=365)
-            pk, sk, cert = generate_mldsa_keys("mldsa44", tmpdir, cert_info)
+            output_prefix = os.path.join(tmpdir, "testkey")
+            pk, sk, cert = generate_mldsa_keys("mldsa44", output_prefix, cert_info)
 
             not_before = datetime.fromisoformat(cert["validity"]["notBefore"].replace("Z", "+00:00"))
             not_after = datetime.fromisoformat(cert["validity"]["notAfter"].replace("Z", "+00:00"))
@@ -261,9 +268,10 @@ class TestCertificateJSONFormat:
         from examples.py.generate_keys import generate_mldsa_keys, Subject, CertificateInfo
         with tempfile.TemporaryDirectory() as tmpdir:
             cert_info = CertificateInfo(subject=Subject())
-            generate_mldsa_keys("mldsa44", tmpdir, cert_info)
+            output_prefix = os.path.join(tmpdir, "testkey")
+            generate_mldsa_keys("mldsa44", output_prefix, cert_info)
 
-            cert_path = os.path.join(tmpdir, "mldsa44_certificate.json")
+            cert_path = f"{output_prefix}_certificate.json"
             with open(cert_path, "r") as f:
                 loaded = json.load(f)
 
@@ -278,12 +286,13 @@ class TestKeyFileContents:
         from examples.py.generate_keys import generate_mldsa_keys, Subject, CertificateInfo
         with tempfile.TemporaryDirectory() as tmpdir:
             cert_info = CertificateInfo(subject=Subject())
-            pk, sk, cert = generate_mldsa_keys("mldsa65", tmpdir, cert_info)
+            output_prefix = os.path.join(tmpdir, "testkey")
+            pk, sk, cert = generate_mldsa_keys("mldsa65", output_prefix, cert_info)
 
             # Read key files
-            with open(os.path.join(tmpdir, "mldsa65_public.key"), "rb") as f:
+            with open(f"{output_prefix}_public.key", "rb") as f:
                 pk_from_file = f.read()
-            with open(os.path.join(tmpdir, "mldsa65_secret.key"), "rb") as f:
+            with open(f"{output_prefix}_secret.key", "rb") as f:
                 sk_from_file = f.read()
 
             assert len(pk_from_file) == cert["keyInfo"]["publicKeySize"]
@@ -297,7 +306,8 @@ class TestKeyFileContents:
         from dsa import MLDSA65
         with tempfile.TemporaryDirectory() as tmpdir:
             cert_info = CertificateInfo(subject=Subject())
-            pk, sk, cert = generate_mldsa_keys("mldsa65", tmpdir, cert_info)
+            output_prefix = os.path.join(tmpdir, "testkey")
+            pk, sk, cert = generate_mldsa_keys("mldsa65", output_prefix, cert_info)
 
             # Use keys to sign and verify
             dsa = MLDSA65()

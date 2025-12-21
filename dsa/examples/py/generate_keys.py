@@ -6,7 +6,12 @@ Generates ML-DSA or SLH-DSA key pairs with certificate metadata,
 similar to OpenSSL RSA key generation.
 
 Usage:
-    python generate_keys.py <algorithm> [output_dir] [options]
+    python generate_keys.py <algorithm> <output_prefix> [options]
+
+The output_prefix is used as the base filename. Generated files:
+    <output_prefix>_public.key      - Public key (binary)
+    <output_prefix>_secret.key      - Secret key (binary)
+    <output_prefix>_certificate.json - Certificate metadata (JSON)
 
 Options:
     --cn <name>         Common Name (e.g., "example.com")
@@ -20,8 +25,11 @@ Options:
     --serial <hex>      Serial number in hex (default: auto-generated)
 
 Examples:
-    python generate_keys.py mldsa65 /keys --cn "api.example.com" --org "My Corp" --days 730
-    python generate_keys.py slh-shake-128f /keys --cn "firmware-signer" --ou "Security"
+    python generate_keys.py mldsa65 myserver
+    # Creates: myserver_public.key, myserver_secret.key, myserver_certificate.json
+
+    python generate_keys.py mldsa65 keys/api --cn "api.example.com" --org "My Corp"
+    # Creates: keys/api_public.key, keys/api_secret.key, keys/api_certificate.json
 """
 
 import os
@@ -84,7 +92,7 @@ class CertificateInfo:
             self.serial_number = secrets.token_hex(8)
 
 
-def generate_mldsa_keys(level: str, output_dir: str, cert_info: CertificateInfo):
+def generate_mldsa_keys(level: str, output_prefix: str, cert_info: CertificateInfo):
     """Generate ML-DSA key pair with certificate metadata."""
     from dsa import MLDSA44, MLDSA65, MLDSA87
 
@@ -109,17 +117,20 @@ def generate_mldsa_keys(level: str, output_dir: str, cert_info: CertificateInfo)
 
     print(f"  Key generation completed in {elapsed:.0f} ms")
 
-    # Create filenames
-    prefix = os.path.join(output_dir, level)
-    pk_file = f"{level}_public.key"
-    sk_file = f"{level}_secret.key"
-    cert_file = f"{level}_certificate.json"
+    # Create file paths using output prefix
+    pk_path = f"{output_prefix}_public.key"
+    sk_path = f"{output_prefix}_secret.key"
+    cert_path = f"{output_prefix}_certificate.json"
+
+    # Extract just filenames for certificate JSON
+    pk_file = os.path.basename(pk_path)
+    sk_file = os.path.basename(sk_path)
 
     # Save keys
-    with open(f"{prefix}_public.key", "wb") as f:
+    with open(pk_path, "wb") as f:
         f.write(public_key)
 
-    with open(f"{prefix}_secret.key", "wb") as f:
+    with open(sk_path, "wb") as f:
         f.write(secret_key)
 
     # Create certificate metadata
@@ -157,13 +168,13 @@ def generate_mldsa_keys(level: str, output_dir: str, cert_info: CertificateInfo)
         "created": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
 
-    with open(f"{prefix}_certificate.json", "w") as f:
+    with open(cert_path, "w") as f:
         json.dump(certificate, f, indent=2)
 
     return public_key, secret_key, certificate
 
 
-def generate_slhdsa_keys(variant: str, output_dir: str, cert_info: CertificateInfo):
+def generate_slhdsa_keys(variant: str, output_prefix: str, cert_info: CertificateInfo):
     """Generate SLH-DSA key pair with certificate metadata."""
     from dsa import slh_keygen
     from dsa.slhdsa.parameters import PARAMETER_SETS
@@ -199,21 +210,23 @@ def generate_slhdsa_keys(variant: str, output_dir: str, cert_info: CertificateIn
 
     print(f"  Key generation completed in {elapsed:.0f} ms")
 
-    # Create filenames
-    safe_name = variant.replace("-", "_")
-    prefix = os.path.join(output_dir, safe_name)
-    pk_file = f"{safe_name}_public.key"
-    sk_file = f"{safe_name}_secret.key"
-    cert_file = f"{safe_name}_certificate.json"
+    # Create file paths using output prefix
+    pk_path = f"{output_prefix}_public.key"
+    sk_path = f"{output_prefix}_secret.key"
+    cert_path = f"{output_prefix}_certificate.json"
+
+    # Extract just filenames for certificate JSON
+    pk_file = os.path.basename(pk_path)
+    sk_file = os.path.basename(sk_path)
 
     # Get signature size from parameters
     sig_size = params.sig_size
 
     # Save keys
-    with open(f"{prefix}_public.key", "wb") as f:
+    with open(pk_path, "wb") as f:
         f.write(public_key)
 
-    with open(f"{prefix}_secret.key", "wb") as f:
+    with open(sk_path, "wb") as f:
         f.write(secret_key)
 
     # Create certificate metadata
@@ -251,7 +264,7 @@ def generate_slhdsa_keys(variant: str, output_dir: str, cert_info: CertificateIn
         "created": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
 
-    with open(f"{prefix}_certificate.json", "w") as f:
+    with open(cert_path, "w") as f:
         json.dump(certificate, f, indent=2)
 
     return public_key, secret_key, certificate
@@ -261,7 +274,11 @@ def print_usage():
     """Print usage information."""
     print("Post-Quantum Key Generator")
     print("=" * 60)
-    print("\nUsage: python generate_keys.py <algorithm> [output_dir] [options]")
+    print("\nUsage: python generate_keys.py <algorithm> <output_prefix> [options]")
+    print("\nThe output_prefix is the base filename for generated files:")
+    print("  <prefix>_public.key       - Public key (binary)")
+    print("  <prefix>_secret.key       - Secret key (binary)")
+    print("  <prefix>_certificate.json - Certificate metadata (JSON)")
     print("\nML-DSA algorithms (FIPS 204 - fast, smaller signatures):")
     print("  mldsa44          - Category 1 (128-bit security)")
     print("  mldsa65          - Category 3 (192-bit security)")
@@ -290,23 +307,18 @@ def print_usage():
     print("  --days <n>         Validity period in days (default: 365)")
     print("  --serial <hex>     Serial number in hex (default: random)")
     print("\nExamples:")
-    print("  # Basic key generation")
-    print("  python generate_keys.py mldsa65 /keys")
+    print("  # Basic key generation (creates myserver_*.key files)")
+    print("  python generate_keys.py mldsa65 myserver")
+    print()
+    print("  # Keys in a subdirectory (creates keys/api_*.key files)")
+    print("  python generate_keys.py mldsa65 keys/api --cn \"api.example.com\"")
     print()
     print("  # TLS server certificate")
-    print("  python generate_keys.py mldsa65 /keys \\")
+    print("  python generate_keys.py mldsa65 tls-server \\")
     print("      --cn \"api.example.com\" \\")
     print("      --org \"Example Corp\" \\")
     print("      --country \"US\" \\")
     print("      --days 730")
-    print()
-    print("  # Code signing certificate")
-    print("  python generate_keys.py slh-shake-256f /keys \\")
-    print("      --cn \"Code Signing\" \\")
-    print("      --org \"My Company\" \\")
-    print("      --ou \"Release Engineering\" \\")
-    print("      --email \"security@example.com\" \\")
-    print("      --days 1825")
 
 
 def main():
@@ -316,7 +328,7 @@ def main():
 
     # Parse arguments manually to match C++ behavior
     algorithm = sys.argv[1].lower()
-    output_dir = "/keys"
+    output_prefix = None
 
     # Certificate info
     subject = Subject()
@@ -327,8 +339,8 @@ def main():
     while i < len(sys.argv):
         arg = sys.argv[i]
 
-        if not arg.startswith("-") and output_dir == "/keys":
-            output_dir = arg
+        if not arg.startswith("-") and output_prefix is None:
+            output_prefix = arg
             i += 1
             continue
 
@@ -363,23 +375,32 @@ def main():
             print(f"Unknown option: {arg}")
             sys.exit(1)
 
+    # Check output prefix is provided
+    if output_prefix is None:
+        print("Error: Output prefix is required")
+        print("Usage: python generate_keys.py <algorithm> <output_prefix> [options]")
+        sys.exit(1)
+
     cert_info = CertificateInfo(
         subject=subject,
         validity_days=validity_days,
         serial_number=serial_number,
     )
 
-    os.makedirs(output_dir, exist_ok=True)
+    # Create parent directory if output_prefix includes a path
+    parent_dir = os.path.dirname(output_prefix)
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
 
-    print(f"Output directory: {output_dir}")
+    print(f"Output prefix: {output_prefix}")
     print()
     print(f"Generating {algorithm.upper()} key pair...")
 
     if algorithm.startswith("mldsa"):
-        pk, sk, cert = generate_mldsa_keys(algorithm, output_dir, cert_info)
+        pk, sk, cert = generate_mldsa_keys(algorithm, output_prefix, cert_info)
         algo_type = "ML-DSA (FIPS 204)"
     elif algorithm.startswith("slh-"):
-        pk, sk, cert = generate_slhdsa_keys(algorithm, output_dir, cert_info)
+        pk, sk, cert = generate_slhdsa_keys(algorithm, output_prefix, cert_info)
         algo_type = "SLH-DSA (FIPS 205)"
     else:
         print(f"Unknown algorithm: {algorithm}")
@@ -427,14 +448,14 @@ def main():
 
     print()
     print("Output Files:")
-    print(f"  {cert['keyInfo']['publicKeyFile']}")
-    print(f"  {cert['keyInfo']['secretKeyFile']}")
-    print(f"  {algorithm.replace('-', '_')}_certificate.json")
+    print(f"  {output_prefix}_public.key")
+    print(f"  {output_prefix}_secret.key")
+    print(f"  {output_prefix}_certificate.json")
 
     print()
     print("=" * 60)
     print("WARNING: Keep your secret key file secure!")
-    print(f"         chmod 600 {output_dir}/*_secret.key")
+    print(f"         chmod 600 {output_prefix}_secret.key")
     print("=" * 60)
 
 

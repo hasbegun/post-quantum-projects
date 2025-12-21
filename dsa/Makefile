@@ -54,9 +54,14 @@ help:
 	@echo "  make cert-mldsa   - ML-DSA certificate example"
 	@echo "  make cert-slhdsa  - SLH-DSA certificate example"
 	@echo ""
-	@echo "Key Generation (saves to ./keys/):"
-	@echo "  make keygen ALG=<alg> [OUT=<dir>] [options]     - Generate keys (Python)"
-	@echo "  make keygen-cpp ALG=<alg> [OUT=<dir>] [options] - Generate keys (C++, faster)"
+	@echo "Key Generation:"
+	@echo "  make keygen-cpp ALG=<alg> OUT=<name> [options] - Generate keys (C++, faster)"
+	@echo "  make keygen ALG=<alg> OUT=<name> [options]     - Generate keys (Python)"
+	@echo ""
+	@echo "  Output files (in ./keys/ by default):"
+	@echo "    <name>_public.key       - Public key"
+	@echo "    <name>_secret.key       - Secret key"
+	@echo "    <name>_certificate.json - Certificate metadata"
 	@echo ""
 	@echo "  Algorithms: mldsa44, mldsa65, mldsa87"
 	@echo "              slh-shake-128f/s, slh-shake-192f/s, slh-shake-256f/s"
@@ -72,13 +77,16 @@ help:
 	@echo "    EMAIL=<email>    Email address"
 	@echo "    DAYS=<n>         Validity period in days (default: 365)"
 	@echo "    SERIAL=<hex>     Serial number in hex"
+	@echo "    KEYS_DIR=<dir>   Output directory (default: ./keys)"
 	@echo ""
 	@echo "  Examples:"
-	@echo "    make keygen-cpp ALG=mldsa65"
-	@echo "    make keygen-cpp ALG=mldsa65 CN=api.example.com ORG='My Corp' DAYS=730"
-	@echo "    make keygen ALG=slh-shake-256f OUT=./my-keys CN='Firmware Signing'"
+	@echo "    make keygen-cpp ALG=mldsa65 OUT=myserver"
+	@echo "    # Creates: ./keys/myserver_public.key, ./keys/myserver_secret.key, ..."
 	@echo ""
-	@echo "  Shortcut targets:"
+	@echo "    make keygen-cpp ALG=mldsa65 OUT=api CN=api.example.com ORG='My Corp'"
+	@echo "    # Creates: ./keys/api_public.key with certificate metadata"
+	@echo ""
+	@echo "  Shortcut targets (creates ./keys/key_*.key):"
 	@echo "    Python:             C++:"
 	@echo "    keygen-mldsa44      keygen-cpp-mldsa44"
 	@echo "    keygen-mldsa65      keygen-cpp-mldsa65"
@@ -160,10 +168,11 @@ shell: build-py
 		python
 
 # Key generation targets (with mounted volume)
-# Usage: make keygen ALG=mldsa44 [OUT=./keys] [CN=...] [ORG=...] etc.
-#        make keygen-cpp ALG=mldsa44 [OUT=./keys] [CN=...] [ORG=...] etc.
+# Usage: make keygen-cpp ALG=mldsa44 OUT=myserver [CN=...] [ORG=...] etc.
+# Creates: ./keys/myserver_public.key, ./keys/myserver_secret.key, ./keys/myserver_certificate.json
 ALG ?= mldsa44
-OUT ?= ./keys
+OUT ?= key
+KEYS_DIR ?= ./keys
 
 # Certificate parameters (optional)
 CN ?=
@@ -208,13 +217,13 @@ endif
 
 # Python key generation
 keygen: build-py
-	@mkdir -p $(OUT)
-	docker run --rm -v $(PWD)/$(OUT):/keys $(IMAGE_NAME_PY) python examples/py/generate_keys.py $(ALG) /keys $(CERT_OPTS)
+	@mkdir -p $(KEYS_DIR)
+	docker run --rm -v $(PWD)/$(KEYS_DIR):/keys $(IMAGE_NAME_PY) python examples/py/generate_keys.py $(ALG) /keys/$(OUT) $(CERT_OPTS)
 
 # C++ key generation (faster)
 keygen-cpp: build-cpp
-	@mkdir -p $(OUT)
-	docker run --rm -v $(PWD)/$(OUT):/keys $(IMAGE_NAME_CPP) ./build/keygen $(ALG) /keys $(CERT_OPTS)
+	@mkdir -p $(KEYS_DIR)
+	docker run --rm -v $(PWD)/$(KEYS_DIR):/keys $(IMAGE_NAME_CPP) ./build/keygen $(ALG) /keys/$(OUT) $(CERT_OPTS)
 
 # Shortcut targets for common algorithms (Python)
 keygen-mldsa44: ALG=mldsa44

@@ -5,7 +5,12 @@
  * similar to OpenSSL RSA key generation.
  *
  * Usage:
- *   ./keygen <algorithm> <output_dir> [options]
+ *   ./keygen <algorithm> <output_prefix> [options]
+ *
+ * The output_prefix is used as the base filename. Generated files:
+ *   <output_prefix>_public.key      - Public key (binary)
+ *   <output_prefix>_secret.key      - Secret key (binary)
+ *   <output_prefix>_certificate.json - Certificate metadata (JSON)
  *
  * Options:
  *   --cn <name>         Common Name (e.g., "example.com")
@@ -19,8 +24,11 @@
  *   --serial <n>        Serial number (default: auto-generated)
  *
  * Examples:
- *   ./keygen mldsa65 /keys --cn "api.example.com" --org "My Corp" --days 730
- *   ./keygen slh-shake-128f /keys --cn "firmware-signer" --ou "Security"
+ *   ./keygen mldsa65 myserver
+ *   # Creates: myserver_public.key, myserver_secret.key, myserver_certificate.json
+ *
+ *   ./keygen mldsa65 keys/api --cn "api.example.com" --org "My Corp"
+ *   # Creates: keys/api_public.key, keys/api_secret.key, keys/api_certificate.json
  */
 
 #include <iostream>
@@ -190,7 +198,7 @@ bool write_metadata(const std::string& path,
 
 // Generate ML-DSA keys
 template<typename DSA>
-bool generate_mldsa(const std::string& name, const std::string& output_dir,
+bool generate_mldsa(const std::string& name, const std::string& output_prefix,
                     const CertificateInfo& cert_info) {
     DSA dsa;
 
@@ -206,17 +214,14 @@ bool generate_mldsa(const std::string& name, const std::string& output_dir,
     // Get signature size from params
     size_t sig_size = dsa.params().sig_size();
 
-    // Create filenames
-    std::string prefix = name;
-    std::transform(prefix.begin(), prefix.end(), prefix.begin(), ::tolower);
+    // Create file paths using the output prefix
+    std::string pk_path = output_prefix + "_public.key";
+    std::string sk_path = output_prefix + "_secret.key";
+    std::string meta_path = output_prefix + "_certificate.json";
 
-    std::string pk_file = prefix + "_public.key";
-    std::string sk_file = prefix + "_secret.key";
-    std::string meta_file = prefix + "_certificate.json";
-
-    std::string pk_path = output_dir + "/" + pk_file;
-    std::string sk_path = output_dir + "/" + sk_file;
-    std::string meta_path = output_dir + "/" + meta_file;
+    // Extract just the filename for the certificate JSON
+    std::string pk_file = fs::path(pk_path).filename().string();
+    std::string sk_file = fs::path(sk_path).filename().string();
 
     // Write files
     if (!write_file(pk_path, pk)) {
@@ -273,16 +278,16 @@ bool generate_mldsa(const std::string& name, const std::string& output_dir,
               << std::setw(16) << cert_info.serial_number << std::dec << std::endl;
 
     std::cout << "\nOutput Files:" << std::endl;
-    std::cout << "  " << pk_file << std::endl;
-    std::cout << "  " << sk_file << std::endl;
-    std::cout << "  " << meta_file << std::endl;
+    std::cout << "  " << pk_path << std::endl;
+    std::cout << "  " << sk_path << std::endl;
+    std::cout << "  " << meta_path << std::endl;
 
     return true;
 }
 
 // Generate SLH-DSA keys
 template<typename DSA>
-bool generate_slhdsa(const std::string& name, const std::string& output_dir,
+bool generate_slhdsa(const std::string& name, const std::string& output_prefix,
                      const CertificateInfo& cert_info) {
     DSA dsa;
 
@@ -298,18 +303,14 @@ bool generate_slhdsa(const std::string& name, const std::string& output_dir,
     // Get signature size from params
     size_t sig_size = dsa.params().sig_size();
 
-    // Create filenames (replace - with _)
-    std::string prefix = name;
-    std::transform(prefix.begin(), prefix.end(), prefix.begin(), ::tolower);
-    std::replace(prefix.begin(), prefix.end(), '-', '_');
+    // Create file paths using the output prefix
+    std::string pk_path = output_prefix + "_public.key";
+    std::string sk_path = output_prefix + "_secret.key";
+    std::string meta_path = output_prefix + "_certificate.json";
 
-    std::string pk_file = prefix + "_public.key";
-    std::string sk_file = prefix + "_secret.key";
-    std::string meta_file = prefix + "_certificate.json";
-
-    std::string pk_path = output_dir + "/" + pk_file;
-    std::string sk_path = output_dir + "/" + sk_file;
-    std::string meta_path = output_dir + "/" + meta_file;
+    // Extract just the filename for the certificate JSON
+    std::string pk_file = fs::path(pk_path).filename().string();
+    std::string sk_file = fs::path(sk_path).filename().string();
 
     // Write files
     if (!write_file(pk_path, pk)) {
@@ -366,9 +367,9 @@ bool generate_slhdsa(const std::string& name, const std::string& output_dir,
               << std::setw(16) << cert_info.serial_number << std::dec << std::endl;
 
     std::cout << "\nOutput Files:" << std::endl;
-    std::cout << "  " << pk_file << std::endl;
-    std::cout << "  " << sk_file << std::endl;
-    std::cout << "  " << meta_file << std::endl;
+    std::cout << "  " << pk_path << std::endl;
+    std::cout << "  " << sk_path << std::endl;
+    std::cout << "  " << meta_path << std::endl;
 
     return true;
 }
@@ -376,7 +377,11 @@ bool generate_slhdsa(const std::string& name, const std::string& output_dir,
 void print_usage() {
     std::cout << "Post-Quantum Key Generator" << std::endl;
     std::cout << std::string(60, '=') << std::endl;
-    std::cout << "\nUsage: keygen <algorithm> [output_dir] [options]" << std::endl;
+    std::cout << "\nUsage: keygen <algorithm> <output_prefix> [options]" << std::endl;
+    std::cout << "\nThe output_prefix is the base filename for generated files:" << std::endl;
+    std::cout << "  <prefix>_public.key       - Public key (binary)" << std::endl;
+    std::cout << "  <prefix>_secret.key       - Secret key (binary)" << std::endl;
+    std::cout << "  <prefix>_certificate.json - Certificate metadata (JSON)" << std::endl;
     std::cout << "\nML-DSA algorithms (FIPS 204 - fast, smaller signatures):" << std::endl;
     std::cout << "  mldsa44          - Category 1 (128-bit security)" << std::endl;
     std::cout << "  mldsa65          - Category 3 (192-bit security)" << std::endl;
@@ -407,18 +412,21 @@ void print_usage() {
     std::cout << "  --serial <hex>     Serial number in hex (default: random)" << std::endl;
 
     std::cout << "\nExamples:" << std::endl;
-    std::cout << "  # Basic key generation" << std::endl;
-    std::cout << "  keygen mldsa65 /keys" << std::endl;
+    std::cout << "  # Basic key generation (creates myserver_*.key files)" << std::endl;
+    std::cout << "  keygen mldsa65 myserver" << std::endl;
+    std::cout << std::endl;
+    std::cout << "  # Keys in a subdirectory (creates keys/api_*.key files)" << std::endl;
+    std::cout << "  keygen mldsa65 keys/api --cn \"api.example.com\"" << std::endl;
     std::cout << std::endl;
     std::cout << "  # TLS server certificate" << std::endl;
-    std::cout << "  keygen mldsa65 /keys \\" << std::endl;
+    std::cout << "  keygen mldsa65 tls-server \\" << std::endl;
     std::cout << "      --cn \"api.example.com\" \\" << std::endl;
     std::cout << "      --org \"Example Corp\" \\" << std::endl;
     std::cout << "      --country \"US\" \\" << std::endl;
     std::cout << "      --days 730" << std::endl;
     std::cout << std::endl;
     std::cout << "  # Code signing certificate" << std::endl;
-    std::cout << "  keygen slh-shake-256f /keys \\" << std::endl;
+    std::cout << "  keygen slh-shake-256f code-signer \\" << std::endl;
     std::cout << "      --cn \"Code Signing\" \\" << std::endl;
     std::cout << "      --org \"My Company\" \\" << std::endl;
     std::cout << "      --ou \"Release Engineering\" \\" << std::endl;
@@ -433,7 +441,7 @@ int main(int argc, char* argv[]) {
     }
 
     std::string algorithm = argv[1];
-    std::string output_dir = "/keys";
+    std::string output_prefix;
 
     // Parse certificate options
     CertificateInfo cert_info;
@@ -443,9 +451,9 @@ int main(int argc, char* argv[]) {
     while (i < argc) {
         std::string arg = argv[i];
 
-        if (arg[0] != '-' && output_dir == "/keys") {
-            // First non-option argument is output directory
-            output_dir = arg;
+        if (arg[0] != '-' && output_prefix.empty()) {
+            // First non-option argument is output prefix
+            output_prefix = arg;
             ++i;
             continue;
         }
@@ -478,52 +486,62 @@ int main(int argc, char* argv[]) {
         ++i;
     }
 
+    // Check output prefix is provided
+    if (output_prefix.empty()) {
+        std::cerr << "Error: Output prefix is required" << std::endl;
+        std::cerr << "Usage: keygen <algorithm> <output_prefix> [options]" << std::endl;
+        return 1;
+    }
+
     // Convert algorithm to lowercase
     std::transform(algorithm.begin(), algorithm.end(), algorithm.begin(), ::tolower);
 
-    // Create output directory if it doesn't exist
-    fs::create_directories(output_dir);
+    // Create parent directory if output_prefix includes a path
+    fs::path prefix_path(output_prefix);
+    if (prefix_path.has_parent_path()) {
+        fs::create_directories(prefix_path.parent_path());
+    }
 
-    std::cout << "Output directory: " << output_dir << std::endl;
+    std::cout << "Output prefix: " << output_prefix << std::endl;
     std::cout << std::endl;
 
     bool success = false;
 
     // ML-DSA algorithms
     if (algorithm == "mldsa44") {
-        success = generate_mldsa<mldsa::MLDSA44>("MLDSA44", output_dir, cert_info);
+        success = generate_mldsa<mldsa::MLDSA44>("MLDSA44", output_prefix, cert_info);
     } else if (algorithm == "mldsa65") {
-        success = generate_mldsa<mldsa::MLDSA65>("MLDSA65", output_dir, cert_info);
+        success = generate_mldsa<mldsa::MLDSA65>("MLDSA65", output_prefix, cert_info);
     } else if (algorithm == "mldsa87") {
-        success = generate_mldsa<mldsa::MLDSA87>("MLDSA87", output_dir, cert_info);
+        success = generate_mldsa<mldsa::MLDSA87>("MLDSA87", output_prefix, cert_info);
     }
     // SLH-DSA SHAKE algorithms
     else if (algorithm == "slh-shake-128f") {
-        success = generate_slhdsa<slhdsa::SLHDSA_SHAKE_128f>("SLH-DSA-SHAKE-128f", output_dir, cert_info);
+        success = generate_slhdsa<slhdsa::SLHDSA_SHAKE_128f>("SLH-DSA-SHAKE-128f", output_prefix, cert_info);
     } else if (algorithm == "slh-shake-128s") {
-        success = generate_slhdsa<slhdsa::SLHDSA_SHAKE_128s>("SLH-DSA-SHAKE-128s", output_dir, cert_info);
+        success = generate_slhdsa<slhdsa::SLHDSA_SHAKE_128s>("SLH-DSA-SHAKE-128s", output_prefix, cert_info);
     } else if (algorithm == "slh-shake-192f") {
-        success = generate_slhdsa<slhdsa::SLHDSA_SHAKE_192f>("SLH-DSA-SHAKE-192f", output_dir, cert_info);
+        success = generate_slhdsa<slhdsa::SLHDSA_SHAKE_192f>("SLH-DSA-SHAKE-192f", output_prefix, cert_info);
     } else if (algorithm == "slh-shake-192s") {
-        success = generate_slhdsa<slhdsa::SLHDSA_SHAKE_192s>("SLH-DSA-SHAKE-192s", output_dir, cert_info);
+        success = generate_slhdsa<slhdsa::SLHDSA_SHAKE_192s>("SLH-DSA-SHAKE-192s", output_prefix, cert_info);
     } else if (algorithm == "slh-shake-256f") {
-        success = generate_slhdsa<slhdsa::SLHDSA_SHAKE_256f>("SLH-DSA-SHAKE-256f", output_dir, cert_info);
+        success = generate_slhdsa<slhdsa::SLHDSA_SHAKE_256f>("SLH-DSA-SHAKE-256f", output_prefix, cert_info);
     } else if (algorithm == "slh-shake-256s") {
-        success = generate_slhdsa<slhdsa::SLHDSA_SHAKE_256s>("SLH-DSA-SHAKE-256s", output_dir, cert_info);
+        success = generate_slhdsa<slhdsa::SLHDSA_SHAKE_256s>("SLH-DSA-SHAKE-256s", output_prefix, cert_info);
     }
     // SLH-DSA SHA2 algorithms
     else if (algorithm == "slh-sha2-128f") {
-        success = generate_slhdsa<slhdsa::SLHDSA_SHA2_128f>("SLH-DSA-SHA2-128f", output_dir, cert_info);
+        success = generate_slhdsa<slhdsa::SLHDSA_SHA2_128f>("SLH-DSA-SHA2-128f", output_prefix, cert_info);
     } else if (algorithm == "slh-sha2-128s") {
-        success = generate_slhdsa<slhdsa::SLHDSA_SHA2_128s>("SLH-DSA-SHA2-128s", output_dir, cert_info);
+        success = generate_slhdsa<slhdsa::SLHDSA_SHA2_128s>("SLH-DSA-SHA2-128s", output_prefix, cert_info);
     } else if (algorithm == "slh-sha2-192f") {
-        success = generate_slhdsa<slhdsa::SLHDSA_SHA2_192f>("SLH-DSA-SHA2-192f", output_dir, cert_info);
+        success = generate_slhdsa<slhdsa::SLHDSA_SHA2_192f>("SLH-DSA-SHA2-192f", output_prefix, cert_info);
     } else if (algorithm == "slh-sha2-192s") {
-        success = generate_slhdsa<slhdsa::SLHDSA_SHA2_192s>("SLH-DSA-SHA2-192s", output_dir, cert_info);
+        success = generate_slhdsa<slhdsa::SLHDSA_SHA2_192s>("SLH-DSA-SHA2-192s", output_prefix, cert_info);
     } else if (algorithm == "slh-sha2-256f") {
-        success = generate_slhdsa<slhdsa::SLHDSA_SHA2_256f>("SLH-DSA-SHA2-256f", output_dir, cert_info);
+        success = generate_slhdsa<slhdsa::SLHDSA_SHA2_256f>("SLH-DSA-SHA2-256f", output_prefix, cert_info);
     } else if (algorithm == "slh-sha2-256s") {
-        success = generate_slhdsa<slhdsa::SLHDSA_SHA2_256s>("SLH-DSA-SHA2-256s", output_dir, cert_info);
+        success = generate_slhdsa<slhdsa::SLHDSA_SHA2_256s>("SLH-DSA-SHA2-256s", output_prefix, cert_info);
     } else {
         std::cerr << "Error: Unknown algorithm '" << algorithm << "'" << std::endl;
         std::cerr << "\nRun with --help to see available algorithms." << std::endl;
@@ -533,7 +551,7 @@ int main(int argc, char* argv[]) {
     if (success) {
         std::cout << "\n" << std::string(60, '=') << std::endl;
         std::cout << "WARNING: Keep your secret key file secure!" << std::endl;
-        std::cout << "         chmod 600 " << output_dir << "/*_secret.key" << std::endl;
+        std::cout << "         chmod 600 " << output_prefix << "_secret.key" << std::endl;
         std::cout << std::string(60, '=') << std::endl;
         return 0;
     }

@@ -135,19 +135,21 @@ int run_keygen(const std::string& args) {
 void test_basic_keygen() {
     TEST("basic keygen creates files") {
         TempDir tmpdir;
-        int ret = run_keygen("mldsa44 " + tmpdir.path());
+        std::string prefix = tmpdir.path() + "/testkey";
+        int ret = run_keygen("mldsa44 " + prefix);
         ASSERT_EQ(ret, 0);
 
-        ASSERT_TRUE(fs::exists(tmpdir.path() + "/mldsa44_public.key"));
-        ASSERT_TRUE(fs::exists(tmpdir.path() + "/mldsa44_secret.key"));
-        ASSERT_TRUE(fs::exists(tmpdir.path() + "/mldsa44_certificate.json"));
+        ASSERT_TRUE(fs::exists(prefix + "_public.key"));
+        ASSERT_TRUE(fs::exists(prefix + "_secret.key"));
+        ASSERT_TRUE(fs::exists(prefix + "_certificate.json"));
     TEST_END
 
     TEST("certificate JSON has required structure") {
         TempDir tmpdir;
-        run_keygen("mldsa65 " + tmpdir.path());
+        std::string prefix = tmpdir.path() + "/testkey";
+        run_keygen("mldsa65 " + prefix);
 
-        std::string json = read_file(tmpdir.path() + "/mldsa65_certificate.json");
+        std::string json = read_file(prefix + "_certificate.json");
 
         ASSERT_TRUE(json_contains(json, "algorithm", "MLDSA65"));
         ASSERT_TRUE(json_contains(json, "type", "ML-DSA"));
@@ -163,9 +165,10 @@ void test_basic_keygen() {
 void test_common_name() {
     TEST("--cn parameter is written to certificate") {
         TempDir tmpdir;
-        run_keygen("mldsa44 " + tmpdir.path() + " --cn \"api.example.com\"");
+        std::string prefix = tmpdir.path() + "/testkey";
+        run_keygen("mldsa44 " + prefix + " --cn \"api.example.com\"");
 
-        std::string json = read_file(tmpdir.path() + "/mldsa44_certificate.json");
+        std::string json = read_file(prefix + "_certificate.json");
 
         ASSERT_TRUE(json_contains(json, "commonName", "api.example.com"));
         ASSERT_TRUE(json_contains_text(json, "CN=api.example.com"));
@@ -173,9 +176,10 @@ void test_common_name() {
 
     TEST("--cn with spaces is preserved") {
         TempDir tmpdir;
-        run_keygen("mldsa44 " + tmpdir.path() + " --cn \"My Test Server\"");
+        std::string prefix = tmpdir.path() + "/testkey";
+        run_keygen("mldsa44 " + prefix + " --cn \"My Test Server\"");
 
-        std::string json = read_file(tmpdir.path() + "/mldsa44_certificate.json");
+        std::string json = read_file(prefix + "_certificate.json");
 
         ASSERT_TRUE(json_contains(json, "commonName", "My Test Server"));
     TEST_END
@@ -185,9 +189,10 @@ void test_common_name() {
 void test_organization() {
     TEST("--org parameter is written to certificate") {
         TempDir tmpdir;
-        run_keygen("mldsa44 " + tmpdir.path() + " --org \"Example Corp\"");
+        std::string prefix = tmpdir.path() + "/testkey";
+        run_keygen("mldsa44 " + prefix + " --org \"Example Corp\"");
 
-        std::string json = read_file(tmpdir.path() + "/mldsa44_certificate.json");
+        std::string json = read_file(prefix + "_certificate.json");
 
         ASSERT_TRUE(json_contains(json, "organization", "Example Corp"));
         ASSERT_TRUE(json_contains_text(json, "O=Example Corp"));
@@ -198,9 +203,10 @@ void test_organization() {
 void test_organizational_unit() {
     TEST("--ou parameter is written to certificate") {
         TempDir tmpdir;
-        run_keygen("mldsa44 " + tmpdir.path() + " --ou \"Engineering\"");
+        std::string prefix = tmpdir.path() + "/testkey";
+        run_keygen("mldsa44 " + prefix + " --ou \"Engineering\"");
 
-        std::string json = read_file(tmpdir.path() + "/mldsa44_certificate.json");
+        std::string json = read_file(prefix + "_certificate.json");
 
         ASSERT_TRUE(json_contains(json, "organizationalUnit", "Engineering"));
         ASSERT_TRUE(json_contains_text(json, "OU=Engineering"));
@@ -211,9 +217,10 @@ void test_organizational_unit() {
 void test_country() {
     TEST("--country parameter is written to certificate") {
         TempDir tmpdir;
-        run_keygen("mldsa44 " + tmpdir.path() + " --country US");
+        std::string prefix = tmpdir.path() + "/testkey";
+        run_keygen("mldsa44 " + prefix + " --country US");
 
-        std::string json = read_file(tmpdir.path() + "/mldsa44_certificate.json");
+        std::string json = read_file(prefix + "_certificate.json");
 
         ASSERT_TRUE(json_contains(json, "country", "US"));
         ASSERT_TRUE(json_contains_text(json, "C=US"));
@@ -224,9 +231,10 @@ void test_country() {
 void test_state() {
     TEST("--state parameter is written to certificate") {
         TempDir tmpdir;
-        run_keygen("mldsa44 " + tmpdir.path() + " --state California");
+        std::string prefix = tmpdir.path() + "/testkey";
+        run_keygen("mldsa44 " + prefix + " --state California");
 
-        std::string json = read_file(tmpdir.path() + "/mldsa44_certificate.json");
+        std::string json = read_file(prefix + "_certificate.json");
 
         ASSERT_TRUE(json_contains(json, "state", "California"));
         ASSERT_TRUE(json_contains_text(json, "ST=California"));
@@ -237,9 +245,10 @@ void test_state() {
 void test_locality() {
     TEST("--locality parameter is written to certificate") {
         TempDir tmpdir;
-        run_keygen("mldsa44 " + tmpdir.path() + " --locality \"San Francisco\"");
+        std::string prefix = tmpdir.path() + "/testkey";
+        run_keygen("mldsa44 " + prefix + " --locality \"San Francisco\"");
 
-        std::string json = read_file(tmpdir.path() + "/mldsa44_certificate.json");
+        std::string json = read_file(prefix + "_certificate.json");
 
         ASSERT_TRUE(json_contains(json, "locality", "San Francisco"));
         ASSERT_TRUE(json_contains_text(json, "L=San Francisco"));
@@ -250,9 +259,10 @@ void test_locality() {
 void test_email() {
     TEST("--email parameter is written to certificate") {
         TempDir tmpdir;
-        run_keygen("mldsa44 " + tmpdir.path() + " --email security@example.com");
+        std::string prefix = tmpdir.path() + "/testkey";
+        run_keygen("mldsa44 " + prefix + " --email security@example.com");
 
-        std::string json = read_file(tmpdir.path() + "/mldsa44_certificate.json");
+        std::string json = read_file(prefix + "_certificate.json");
 
         ASSERT_TRUE(json_contains(json, "email", "security@example.com"));
         ASSERT_TRUE(json_contains_text(json, "emailAddress=security@example.com"));
@@ -263,18 +273,20 @@ void test_email() {
 void test_validity_days() {
     TEST("--days parameter is written to certificate") {
         TempDir tmpdir;
-        run_keygen("mldsa44 " + tmpdir.path() + " --days 730");
+        std::string prefix = tmpdir.path() + "/testkey";
+        run_keygen("mldsa44 " + prefix + " --days 730");
 
-        std::string json = read_file(tmpdir.path() + "/mldsa44_certificate.json");
+        std::string json = read_file(prefix + "_certificate.json");
 
         ASSERT_TRUE(json_contains(json, "days", "730"));
     TEST_END
 
     TEST("default validity is 365 days") {
         TempDir tmpdir;
-        run_keygen("mldsa44 " + tmpdir.path());
+        std::string prefix = tmpdir.path() + "/testkey";
+        run_keygen("mldsa44 " + prefix);
 
-        std::string json = read_file(tmpdir.path() + "/mldsa44_certificate.json");
+        std::string json = read_file(prefix + "_certificate.json");
 
         ASSERT_TRUE(json_contains(json, "days", "365"));
     TEST_END
@@ -284,9 +296,10 @@ void test_validity_days() {
 void test_serial_number() {
     TEST("--serial parameter is written to certificate") {
         TempDir tmpdir;
-        run_keygen("mldsa44 " + tmpdir.path() + " --serial abcd1234");
+        std::string prefix = tmpdir.path() + "/testkey";
+        run_keygen("mldsa44 " + prefix + " --serial abcd1234");
 
-        std::string json = read_file(tmpdir.path() + "/mldsa44_certificate.json");
+        std::string json = read_file(prefix + "_certificate.json");
 
         // Serial is stored as hex, padded to 16 chars
         ASSERT_TRUE(json_contains_text(json, "00000000abcd1234"));
@@ -294,9 +307,10 @@ void test_serial_number() {
 
     TEST("auto-generated serial is non-empty") {
         TempDir tmpdir;
-        run_keygen("mldsa44 " + tmpdir.path());
+        std::string prefix = tmpdir.path() + "/testkey";
+        run_keygen("mldsa44 " + prefix);
 
-        std::string json = read_file(tmpdir.path() + "/mldsa44_certificate.json");
+        std::string json = read_file(prefix + "_certificate.json");
 
         std::string serial = get_json_value(json, "serialNumber");
         ASSERT_FALSE(serial.empty());
@@ -308,7 +322,8 @@ void test_serial_number() {
 void test_full_subject() {
     TEST("all parameters combined in DN string") {
         TempDir tmpdir;
-        run_keygen("mldsa65 " + tmpdir.path() +
+        std::string prefix = tmpdir.path() + "/testkey";
+        run_keygen("mldsa65 " + prefix +
             " --cn \"api.example.com\""
             " --org \"Example Corp\""
             " --ou \"Engineering\""
@@ -318,7 +333,7 @@ void test_full_subject() {
             " --email security@example.com"
             " --days 730");
 
-        std::string json = read_file(tmpdir.path() + "/mldsa65_certificate.json");
+        std::string json = read_file(prefix + "_certificate.json");
 
         // Verify all individual fields
         ASSERT_TRUE(json_contains(json, "commonName", "api.example.com"));
@@ -362,11 +377,12 @@ void test_full_subject() {
 void test_slhdsa_certificate() {
     TEST("SLH-DSA keygen with certificate parameters") {
         TempDir tmpdir;
-        run_keygen("slh-shake-128f " + tmpdir.path() +
+        std::string prefix = tmpdir.path() + "/testkey";
+        run_keygen("slh-shake-128f " + prefix +
             " --cn \"firmware-signer\""
             " --org \"Security Team\"");
 
-        std::string json = read_file(tmpdir.path() + "/slh_dsa_shake_128f_certificate.json");
+        std::string json = read_file(prefix + "_certificate.json");
 
         ASSERT_TRUE(json_contains(json, "algorithm", "SLH-DSA-SHAKE-128f"));
         ASSERT_TRUE(json_contains(json, "type", "SLH-DSA"));
@@ -380,9 +396,10 @@ void test_slhdsa_certificate() {
 void test_key_info_accuracy() {
     TEST("keyInfo sizes match actual key files") {
         TempDir tmpdir;
-        run_keygen("mldsa65 " + tmpdir.path());
+        std::string prefix = tmpdir.path() + "/testkey";
+        run_keygen("mldsa65 " + prefix);
 
-        std::string json = read_file(tmpdir.path() + "/mldsa65_certificate.json");
+        std::string json = read_file(prefix + "_certificate.json");
 
         // Get reported sizes from JSON
         std::string pk_size_str = get_json_value(json, "publicKeySize");
@@ -392,8 +409,8 @@ void test_key_info_accuracy() {
         size_t reported_sk_size = std::stoul(sk_size_str);
 
         // Get actual file sizes
-        size_t actual_pk_size = fs::file_size(tmpdir.path() + "/mldsa65_public.key");
-        size_t actual_sk_size = fs::file_size(tmpdir.path() + "/mldsa65_secret.key");
+        size_t actual_pk_size = fs::file_size(prefix + "_public.key");
+        size_t actual_sk_size = fs::file_size(prefix + "_secret.key");
 
         ASSERT_EQ(reported_pk_size, actual_pk_size);
         ASSERT_EQ(reported_sk_size, actual_sk_size);
@@ -408,10 +425,11 @@ void test_key_info_accuracy() {
 void test_json_escaping() {
     TEST("special characters are properly escaped in JSON") {
         TempDir tmpdir;
+        std::string prefix = tmpdir.path() + "/testkey";
         // Note: Testing with quotes and backslashes in values
-        run_keygen("mldsa44 " + tmpdir.path() + " --cn \"Test\\\\Server\"");
+        run_keygen("mldsa44 " + prefix + " --cn \"Test\\\\Server\"");
 
-        std::string json = read_file(tmpdir.path() + "/mldsa44_certificate.json");
+        std::string json = read_file(prefix + "_certificate.json");
 
         // Should be valid JSON - no parsing errors
         // The backslash should be escaped
@@ -423,9 +441,10 @@ void test_json_escaping() {
 void test_empty_fields() {
     TEST("empty subject fields are included as empty strings") {
         TempDir tmpdir;
-        run_keygen("mldsa44 " + tmpdir.path() + " --cn \"test\"");
+        std::string prefix = tmpdir.path() + "/testkey";
+        run_keygen("mldsa44 " + prefix + " --cn \"test\"");
 
-        std::string json = read_file(tmpdir.path() + "/mldsa44_certificate.json");
+        std::string json = read_file(prefix + "_certificate.json");
 
         // All fields should exist, just be empty
         ASSERT_TRUE(json_contains(json, "commonName", "test"));

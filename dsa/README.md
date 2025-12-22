@@ -298,6 +298,7 @@ make keygen-cpp ALG=mldsa65 \
 | `EMAIL` | Email address | `EMAIL=admin@example.com` |
 | `DAYS` | Validity period | `DAYS=365` |
 | `SERIAL` | Serial number (hex) | `SERIAL=abc123` |
+| `PASSWORD` | Encrypt secret key | `PASSWORD=mysecret` |
 
 **Available Algorithms:**
 | Algorithm | Type | Security | Signature Size |
@@ -370,6 +371,57 @@ docker run --rm -v $(pwd)/keys:/keys dsa-cpp \
     --org "Example Corp" \
     --country "US" \
     --days 730
+```
+
+### Password Protection for Secret Keys
+
+Secret keys can be encrypted with a password for secure storage. This uses:
+- **PBKDF2-HMAC-SHA256** for key derivation (600,000 iterations per OWASP 2023 recommendations)
+- **AES-256-GCM** for authenticated encryption
+
+**Using Make (use `PASSWORD=value` syntax):**
+```bash
+# Generate password-protected keys
+make keygen-cpp ALG=mldsa65 OUT=secure PASSWORD=mysecretpassword
+
+# With certificate metadata
+make keygen-cpp ALG=mldsa65 OUT=api \
+    CN=api.example.com \
+    ORG="Example Corp" \
+    PASSWORD=mysecretpassword
+```
+
+> **Note:** Use `PASSWORD=value` (Make variable syntax), NOT `--password value`.
+
+**Using keygen binary directly (use `--password value` syntax):**
+```bash
+# Password provided on command line
+./keygen mldsa65 mykey --password "mysecretpassword"
+
+# Interactive password prompt (recommended for security)
+./keygen mldsa65 mykey --password-prompt
+
+# Password from stdin (for scripts)
+echo "mysecretpassword" | ./keygen mldsa65 mykey --password-stdin
+```
+
+**Encrypted Key File Format:**
+- Magic header: `PQCRYPT1`
+- 32-byte random salt
+- 12-byte IV (nonce)
+- 16-byte authentication tag
+- Encrypted key data
+
+The certificate JSON indicates encryption status:
+```json
+{
+  "encryption": {
+    "encrypted": true,
+    "cipher": "AES-256-GCM",
+    "kdf": "PBKDF2-HMAC-SHA256",
+    "kdfIterations": 600000
+  }
+}
 ```
 
 ### Example 6: Multi-Container Demo App

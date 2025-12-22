@@ -437,6 +437,95 @@ void test_json_escaping() {
     TEST_END
 }
 
+// Read binary file
+std::vector<uint8_t> read_binary_file(const std::string& path) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file) {
+        throw std::runtime_error("Cannot open file: " + path);
+    }
+    return std::vector<uint8_t>(
+        std::istreambuf_iterator<char>(file),
+        std::istreambuf_iterator<char>()
+    );
+}
+
+// Test password-protected key generation
+void test_password_protection() {
+    TEST("--password creates encrypted secret key") {
+        TempDir tmpdir;
+        std::string prefix = tmpdir.path() + "/testkey";
+        int ret = run_keygen("mldsa44 " + prefix + " --password testpassword123");
+        ASSERT_EQ(ret, 0);
+
+        // Verify files exist
+        ASSERT_TRUE(fs::exists(prefix + "_public.key"));
+        ASSERT_TRUE(fs::exists(prefix + "_secret.key"));
+        ASSERT_TRUE(fs::exists(prefix + "_certificate.json"));
+
+        // Check secret key has encryption header "PQCRYPT1"
+        auto sk_data = read_binary_file(prefix + "_secret.key");
+        ASSERT_TRUE(sk_data.size() >= 8);
+        std::string magic(sk_data.begin(), sk_data.begin() + 8);
+        ASSERT_EQ(magic, "PQCRYPT1");
+    TEST_END
+
+    TEST("encrypted key is larger than unencrypted") {
+        TempDir tmpdir;
+        std::string prefix_enc = tmpdir.path() + "/enc";
+        std::string prefix_plain = tmpdir.path() + "/plain";
+
+        run_keygen("mldsa44 " + prefix_enc + " --password testpassword");
+        run_keygen("mldsa44 " + prefix_plain);
+
+        size_t enc_size = fs::file_size(prefix_enc + "_secret.key");
+        size_t plain_size = fs::file_size(prefix_plain + "_secret.key");
+
+        // Encrypted key should be larger due to header (salt, IV, tag, etc.)
+        ASSERT_TRUE(enc_size > plain_size);
+    TEST_END
+
+    TEST("certificate indicates encryption status") {
+        TempDir tmpdir;
+        std::string prefix = tmpdir.path() + "/testkey";
+        run_keygen("mldsa65 " + prefix + " --password mysecretpass");
+
+        std::string json = read_file(prefix + "_certificate.json");
+
+        // Check encryption fields
+        ASSERT_TRUE(json_contains_text(json, "\"encrypted\": true"));
+        ASSERT_TRUE(json_contains_text(json, "\"cipher\": \"AES-256-GCM\""));
+        ASSERT_TRUE(json_contains_text(json, "\"kdf\": \"PBKDF2-HMAC-SHA256\""));
+        ASSERT_TRUE(json_contains_text(json, "\"kdfIterations\": 600000"));
+    TEST_END
+
+    TEST("unencrypted key has encryption: false") {
+        TempDir tmpdir;
+        std::string prefix = tmpdir.path() + "/testkey";
+        run_keygen("mldsa44 " + prefix);
+
+        std::string json = read_file(prefix + "_certificate.json");
+
+        ASSERT_TRUE(json_contains_text(json, "\"encrypted\": false"));
+    TEST_END
+
+    TEST("password protection works with SLH-DSA") {
+        TempDir tmpdir;
+        std::string prefix = tmpdir.path() + "/testkey";
+        int ret = run_keygen("slh-shake-128f " + prefix + " --password slhdsa_pass");
+        ASSERT_EQ(ret, 0);
+
+        // Check secret key has encryption header
+        auto sk_data = read_binary_file(prefix + "_secret.key");
+        std::string magic(sk_data.begin(), sk_data.begin() + 8);
+        ASSERT_EQ(magic, "PQCRYPT1");
+
+        // Check certificate
+        std::string json = read_file(prefix + "_certificate.json");
+        ASSERT_TRUE(json_contains_text(json, "\"encrypted\": true"));
+        ASSERT_TRUE(json_contains(json, "type", "SLH-DSA"));
+    TEST_END
+}
+
 // Test empty subject fields are included as empty strings
 void test_empty_fields() {
     TEST("empty subject fields are included as empty strings") {
@@ -482,6 +571,9 @@ int main() {
     std::cout << std::endl << "--- Edge Case Tests ---" << std::endl;
     test_json_escaping();
     test_empty_fields();
+
+    std::cout << std::endl << "--- Password Protection Tests ---" << std::endl;
+    test_password_protection();
 
     std::cout << std::endl << "=== Test Results ===" << std::endl;
     std::cout << "Passed: " << tests_passed << std::endl;

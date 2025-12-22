@@ -79,12 +79,20 @@ help:
 	@echo "    SERIAL=<hex>     Serial number in hex"
 	@echo "    KEYS_DIR=<dir>   Output directory (default: ./keys)"
 	@echo ""
+	@echo "  Password Protection:"
+	@echo "    PASSWORD=<pass>  Encrypt secret key with password"
+	@echo "                     Example: PASSWORD=mysecret (NOT --password)"
+	@echo "                     Uses AES-256-GCM with PBKDF2 key derivation"
+	@echo ""
 	@echo "  Examples:"
 	@echo "    make keygen-cpp ALG=mldsa65 OUT=myserver"
 	@echo "    # Creates: ./keys/myserver_public.key, ./keys/myserver_secret.key, ..."
 	@echo ""
 	@echo "    make keygen-cpp ALG=mldsa65 OUT=api CN=api.example.com ORG='My Corp'"
 	@echo "    # Creates: ./keys/api_public.key with certificate metadata"
+	@echo ""
+	@echo "    make keygen-cpp ALG=mldsa65 OUT=secure PASSWORD=mysecret"
+	@echo "    # Creates password-protected secret key"
 	@echo ""
 	@echo "  Shortcut targets (creates ./keys/key_*.key):"
 	@echo "    Python:             C++:"
@@ -184,6 +192,7 @@ LOCALITY ?=
 EMAIL ?=
 DAYS ?=
 SERIAL ?=
+PASSWORD ?=
 
 # Build certificate options string
 CERT_OPTS :=
@@ -213,6 +222,9 @@ ifneq ($(DAYS),)
 endif
 ifneq ($(SERIAL),)
   CERT_OPTS += --serial "$(SERIAL)"
+endif
+ifneq ($(PASSWORD),)
+  CERT_OPTS += --password "$(PASSWORD)"
 endif
 
 # Python key generation

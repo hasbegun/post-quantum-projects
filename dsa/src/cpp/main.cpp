@@ -42,11 +42,49 @@
 #include <filesystem>
 #include <random>
 #include <optional>
+#include <termios.h>
+#include <unistd.h>
 
 #include "mldsa/mldsa.hpp"
 #include "slhdsa/slh_dsa.hpp"
+#include "key_encryption.hpp"
 
 namespace fs = std::filesystem;
+
+// Read password from terminal with echo disabled
+std::string read_password_from_terminal(const std::string& prompt) {
+    std::cout << prompt << std::flush;
+
+    // Disable echo
+    struct termios old_term, new_term;
+    tcgetattr(STDIN_FILENO, &old_term);
+    new_term = old_term;
+    new_term.c_lflag &= ~ECHO;
+    tcsetattr(STDIN_FILENO, TCSANOW, &new_term);
+
+    std::string password;
+    std::getline(std::cin, password);
+
+    // Restore terminal
+    tcsetattr(STDIN_FILENO, TCSANOW, &old_term);
+    std::cout << std::endl;
+
+    return password;
+}
+
+// Read password from stdin (for piping)
+std::string read_password_from_stdin() {
+    std::string password;
+    std::getline(std::cin, password);
+    // Remove trailing newline if present
+    if (!password.empty() && password.back() == '\n') {
+        password.pop_back();
+    }
+    if (!password.empty() && password.back() == '\r') {
+        password.pop_back();
+    }
+    return password;
+}
 
 // Certificate subject information
 struct Subject {
@@ -83,11 +121,20 @@ struct Subject {
     }
 };
 
+// Encryption info for certificate
+struct EncryptionInfo {
+    bool encrypted = false;
+    std::string cipher = "";
+    std::string kdf = "";
+    int kdf_iterations = 0;
+};
+
 // Certificate metadata
 struct CertificateInfo {
     Subject subject;
     int validity_days = 365;
     uint64_t serial_number = 0;
+    EncryptionInfo encryption;
 };
 
 // Get current ISO timestamp
@@ -190,6 +237,20 @@ bool write_metadata(const std::string& path,
     file << "    \"secretKeyFile\": \"" << sk_file << "\"\n";
     file << "  },\n";
     file << "\n";
+
+    // Encryption info
+    file << "  \"encryption\": {\n";
+    file << "    \"encrypted\": " << (cert_info.encryption.encrypted ? "true" : "false");
+    if (cert_info.encryption.encrypted) {
+        file << ",\n";
+        file << "    \"cipher\": \"" << cert_info.encryption.cipher << "\",\n";
+        file << "    \"kdf\": \"" << cert_info.encryption.kdf << "\",\n";
+        file << "    \"kdfIterations\": " << cert_info.encryption.kdf_iterations << "\n";
+    } else {
+        file << "\n";
+    }
+    file << "  },\n";
+    file << "\n";
     file << "  \"created\": \"" << created << "\"\n";
     file << "}\n";
 
@@ -199,7 +260,7 @@ bool write_metadata(const std::string& path,
 // Generate ML-DSA keys
 template<typename DSA>
 bool generate_mldsa(const std::string& name, const std::string& output_prefix,
-                    const CertificateInfo& cert_info) {
+                    CertificateInfo& cert_info, const std::string& password = "") {
     DSA dsa;
 
     std::cout << "Generating " << name << " key pair..." << std::endl;
@@ -223,15 +284,36 @@ bool generate_mldsa(const std::string& name, const std::string& output_prefix,
     std::string pk_file = fs::path(pk_path).filename().string();
     std::string sk_file = fs::path(sk_path).filename().string();
 
-    // Write files
+    // Write public key (never encrypted)
     if (!write_file(pk_path, pk)) {
         std::cerr << "Error: Failed to write public key" << std::endl;
         return false;
     }
 
-    if (!write_file(sk_path, sk)) {
-        std::cerr << "Error: Failed to write secret key" << std::endl;
-        return false;
+    // Write secret key (optionally encrypted)
+    if (!password.empty()) {
+        std::cout << "  Encrypting secret key..." << std::endl;
+        try {
+            uint32_t alg_id = pqc::get_algorithm_id(name);
+            auto encrypted_sk = pqc::encrypt_secret_key(sk, password, alg_id);
+            if (!write_file(sk_path, encrypted_sk)) {
+                std::cerr << "Error: Failed to write encrypted secret key" << std::endl;
+                return false;
+            }
+            // Update certificate info
+            cert_info.encryption.encrypted = true;
+            cert_info.encryption.cipher = "AES-256-GCM";
+            cert_info.encryption.kdf = "PBKDF2-HMAC-SHA256";
+            cert_info.encryption.kdf_iterations = pqc::PBKDF2_ITERATIONS;
+        } catch (const std::exception& e) {
+            std::cerr << "Error: Encryption failed: " << e.what() << std::endl;
+            return false;
+        }
+    } else {
+        if (!write_file(sk_path, sk)) {
+            std::cerr << "Error: Failed to write secret key" << std::endl;
+            return false;
+        }
     }
 
     if (!write_metadata(meta_path, name, "ML-DSA",
@@ -248,8 +330,19 @@ bool generate_mldsa(const std::string& name, const std::string& output_prefix,
     std::cout << "\nAlgorithm:       " << name << std::endl;
     std::cout << "Type:            ML-DSA (FIPS 204)" << std::endl;
     std::cout << "Public Key:      " << pk.size() << " bytes" << std::endl;
-    std::cout << "Secret Key:      " << sk.size() << " bytes" << std::endl;
+    std::cout << "Secret Key:      " << sk.size() << " bytes";
+    if (cert_info.encryption.encrypted) {
+        std::cout << " (encrypted)";
+    }
+    std::cout << std::endl;
     std::cout << "Signature Size:  " << sig_size << " bytes" << std::endl;
+
+    if (cert_info.encryption.encrypted) {
+        std::cout << "\nEncryption:" << std::endl;
+        std::cout << "  Cipher:        " << cert_info.encryption.cipher << std::endl;
+        std::cout << "  KDF:           " << cert_info.encryption.kdf << std::endl;
+        std::cout << "  Iterations:    " << cert_info.encryption.kdf_iterations << std::endl;
+    }
 
     if (!cert_info.subject.empty()) {
         std::cout << "\nSubject:" << std::endl;
@@ -288,7 +381,7 @@ bool generate_mldsa(const std::string& name, const std::string& output_prefix,
 // Generate SLH-DSA keys
 template<typename DSA>
 bool generate_slhdsa(const std::string& name, const std::string& output_prefix,
-                     const CertificateInfo& cert_info) {
+                     CertificateInfo& cert_info, const std::string& password = "") {
     DSA dsa;
 
     std::cout << "Generating " << name << " key pair..." << std::endl;
@@ -312,15 +405,36 @@ bool generate_slhdsa(const std::string& name, const std::string& output_prefix,
     std::string pk_file = fs::path(pk_path).filename().string();
     std::string sk_file = fs::path(sk_path).filename().string();
 
-    // Write files
+    // Write public key (never encrypted)
     if (!write_file(pk_path, pk)) {
         std::cerr << "Error: Failed to write public key" << std::endl;
         return false;
     }
 
-    if (!write_file(sk_path, sk)) {
-        std::cerr << "Error: Failed to write secret key" << std::endl;
-        return false;
+    // Write secret key (optionally encrypted)
+    if (!password.empty()) {
+        std::cout << "  Encrypting secret key..." << std::endl;
+        try {
+            uint32_t alg_id = pqc::get_algorithm_id(name);
+            auto encrypted_sk = pqc::encrypt_secret_key(sk, password, alg_id);
+            if (!write_file(sk_path, encrypted_sk)) {
+                std::cerr << "Error: Failed to write encrypted secret key" << std::endl;
+                return false;
+            }
+            // Update certificate info
+            cert_info.encryption.encrypted = true;
+            cert_info.encryption.cipher = "AES-256-GCM";
+            cert_info.encryption.kdf = "PBKDF2-HMAC-SHA256";
+            cert_info.encryption.kdf_iterations = pqc::PBKDF2_ITERATIONS;
+        } catch (const std::exception& e) {
+            std::cerr << "Error: Encryption failed: " << e.what() << std::endl;
+            return false;
+        }
+    } else {
+        if (!write_file(sk_path, sk)) {
+            std::cerr << "Error: Failed to write secret key" << std::endl;
+            return false;
+        }
     }
 
     if (!write_metadata(meta_path, name, "SLH-DSA",
@@ -337,8 +451,19 @@ bool generate_slhdsa(const std::string& name, const std::string& output_prefix,
     std::cout << "\nAlgorithm:       " << name << std::endl;
     std::cout << "Type:            SLH-DSA (FIPS 205)" << std::endl;
     std::cout << "Public Key:      " << pk.size() << " bytes" << std::endl;
-    std::cout << "Secret Key:      " << sk.size() << " bytes" << std::endl;
+    std::cout << "Secret Key:      " << sk.size() << " bytes";
+    if (cert_info.encryption.encrypted) {
+        std::cout << " (encrypted)";
+    }
+    std::cout << std::endl;
     std::cout << "Signature Size:  " << sig_size << " bytes" << std::endl;
+
+    if (cert_info.encryption.encrypted) {
+        std::cout << "\nEncryption:" << std::endl;
+        std::cout << "  Cipher:        " << cert_info.encryption.cipher << std::endl;
+        std::cout << "  KDF:           " << cert_info.encryption.kdf << std::endl;
+        std::cout << "  Iterations:    " << cert_info.encryption.kdf_iterations << std::endl;
+    }
 
     if (!cert_info.subject.empty()) {
         std::cout << "\nSubject:" << std::endl;
@@ -411,12 +536,26 @@ void print_usage() {
     std::cout << "  --days <n>         Validity period in days (default: 365)" << std::endl;
     std::cout << "  --serial <hex>     Serial number in hex (default: random)" << std::endl;
 
+    std::cout << "\nPassword Protection:" << std::endl;
+    std::cout << "  --password <pass>  Encrypt secret key with password" << std::endl;
+    std::cout << "  --password-stdin   Read password from stdin (for scripts)" << std::endl;
+    std::cout << "  --password-prompt  Prompt for password interactively" << std::endl;
+    std::cout << std::endl;
+    std::cout << "  The secret key is encrypted using AES-256-GCM with a key derived" << std::endl;
+    std::cout << "  from the password using PBKDF2-HMAC-SHA256 (600,000 iterations)." << std::endl;
+
     std::cout << "\nExamples:" << std::endl;
     std::cout << "  # Basic key generation (creates myserver_*.key files)" << std::endl;
     std::cout << "  keygen mldsa65 myserver" << std::endl;
     std::cout << std::endl;
     std::cout << "  # Keys in a subdirectory (creates keys/api_*.key files)" << std::endl;
     std::cout << "  keygen mldsa65 keys/api --cn \"api.example.com\"" << std::endl;
+    std::cout << std::endl;
+    std::cout << "  # Password-protected secret key (prompted)" << std::endl;
+    std::cout << "  keygen mldsa65 secure-key --password-prompt" << std::endl;
+    std::cout << std::endl;
+    std::cout << "  # Password-protected from stdin (for scripts)" << std::endl;
+    std::cout << "  echo 'mypassword' | keygen mldsa65 key --password-stdin" << std::endl;
     std::cout << std::endl;
     std::cout << "  # TLS server certificate" << std::endl;
     std::cout << "  keygen mldsa65 tls-server \\" << std::endl;
@@ -425,12 +564,11 @@ void print_usage() {
     std::cout << "      --country \"US\" \\" << std::endl;
     std::cout << "      --days 730" << std::endl;
     std::cout << std::endl;
-    std::cout << "  # Code signing certificate" << std::endl;
+    std::cout << "  # Code signing with password protection" << std::endl;
     std::cout << "  keygen slh-shake-256f code-signer \\" << std::endl;
     std::cout << "      --cn \"Code Signing\" \\" << std::endl;
     std::cout << "      --org \"My Company\" \\" << std::endl;
-    std::cout << "      --ou \"Release Engineering\" \\" << std::endl;
-    std::cout << "      --email \"security@example.com\" \\" << std::endl;
+    std::cout << "      --password-prompt \\" << std::endl;
     std::cout << "      --days 1825" << std::endl;
 }
 
@@ -442,6 +580,9 @@ int main(int argc, char* argv[]) {
 
     std::string algorithm = argv[1];
     std::string output_prefix;
+    std::string password;
+    bool password_stdin = false;
+    bool password_prompt = false;
 
     // Parse certificate options
     CertificateInfo cert_info;
@@ -476,6 +617,12 @@ int main(int argc, char* argv[]) {
             cert_info.validity_days = std::stoi(argv[++i]);
         } else if (arg == "--serial" && i + 1 < argc) {
             cert_info.serial_number = std::stoull(argv[++i], nullptr, 16);
+        } else if (arg == "--password" && i + 1 < argc) {
+            password = argv[++i];
+        } else if (arg == "--password-stdin") {
+            password_stdin = true;
+        } else if (arg == "--password-prompt") {
+            password_prompt = true;
         } else if (arg == "--help" || arg == "-h") {
             print_usage();
             return 0;
@@ -484,6 +631,27 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         ++i;
+    }
+
+    // Handle password input methods
+    if (password_stdin) {
+        password = read_password_from_stdin();
+        if (password.empty()) {
+            std::cerr << "Error: No password provided via stdin" << std::endl;
+            return 1;
+        }
+    } else if (password_prompt) {
+        password = read_password_from_terminal("Enter password for secret key: ");
+        if (password.empty()) {
+            std::cerr << "Error: Password cannot be empty" << std::endl;
+            return 1;
+        }
+        // Confirm password
+        std::string confirm = read_password_from_terminal("Confirm password: ");
+        if (password != confirm) {
+            std::cerr << "Error: Passwords do not match" << std::endl;
+            return 1;
+        }
     }
 
     // Check output prefix is provided
@@ -509,39 +677,39 @@ int main(int argc, char* argv[]) {
 
     // ML-DSA algorithms
     if (algorithm == "mldsa44") {
-        success = generate_mldsa<mldsa::MLDSA44>("MLDSA44", output_prefix, cert_info);
+        success = generate_mldsa<mldsa::MLDSA44>("MLDSA44", output_prefix, cert_info, password);
     } else if (algorithm == "mldsa65") {
-        success = generate_mldsa<mldsa::MLDSA65>("MLDSA65", output_prefix, cert_info);
+        success = generate_mldsa<mldsa::MLDSA65>("MLDSA65", output_prefix, cert_info, password);
     } else if (algorithm == "mldsa87") {
-        success = generate_mldsa<mldsa::MLDSA87>("MLDSA87", output_prefix, cert_info);
+        success = generate_mldsa<mldsa::MLDSA87>("MLDSA87", output_prefix, cert_info, password);
     }
     // SLH-DSA SHAKE algorithms
     else if (algorithm == "slh-shake-128f") {
-        success = generate_slhdsa<slhdsa::SLHDSA_SHAKE_128f>("SLH-DSA-SHAKE-128f", output_prefix, cert_info);
+        success = generate_slhdsa<slhdsa::SLHDSA_SHAKE_128f>("SLH-DSA-SHAKE-128f", output_prefix, cert_info, password);
     } else if (algorithm == "slh-shake-128s") {
-        success = generate_slhdsa<slhdsa::SLHDSA_SHAKE_128s>("SLH-DSA-SHAKE-128s", output_prefix, cert_info);
+        success = generate_slhdsa<slhdsa::SLHDSA_SHAKE_128s>("SLH-DSA-SHAKE-128s", output_prefix, cert_info, password);
     } else if (algorithm == "slh-shake-192f") {
-        success = generate_slhdsa<slhdsa::SLHDSA_SHAKE_192f>("SLH-DSA-SHAKE-192f", output_prefix, cert_info);
+        success = generate_slhdsa<slhdsa::SLHDSA_SHAKE_192f>("SLH-DSA-SHAKE-192f", output_prefix, cert_info, password);
     } else if (algorithm == "slh-shake-192s") {
-        success = generate_slhdsa<slhdsa::SLHDSA_SHAKE_192s>("SLH-DSA-SHAKE-192s", output_prefix, cert_info);
+        success = generate_slhdsa<slhdsa::SLHDSA_SHAKE_192s>("SLH-DSA-SHAKE-192s", output_prefix, cert_info, password);
     } else if (algorithm == "slh-shake-256f") {
-        success = generate_slhdsa<slhdsa::SLHDSA_SHAKE_256f>("SLH-DSA-SHAKE-256f", output_prefix, cert_info);
+        success = generate_slhdsa<slhdsa::SLHDSA_SHAKE_256f>("SLH-DSA-SHAKE-256f", output_prefix, cert_info, password);
     } else if (algorithm == "slh-shake-256s") {
-        success = generate_slhdsa<slhdsa::SLHDSA_SHAKE_256s>("SLH-DSA-SHAKE-256s", output_prefix, cert_info);
+        success = generate_slhdsa<slhdsa::SLHDSA_SHAKE_256s>("SLH-DSA-SHAKE-256s", output_prefix, cert_info, password);
     }
     // SLH-DSA SHA2 algorithms
     else if (algorithm == "slh-sha2-128f") {
-        success = generate_slhdsa<slhdsa::SLHDSA_SHA2_128f>("SLH-DSA-SHA2-128f", output_prefix, cert_info);
+        success = generate_slhdsa<slhdsa::SLHDSA_SHA2_128f>("SLH-DSA-SHA2-128f", output_prefix, cert_info, password);
     } else if (algorithm == "slh-sha2-128s") {
-        success = generate_slhdsa<slhdsa::SLHDSA_SHA2_128s>("SLH-DSA-SHA2-128s", output_prefix, cert_info);
+        success = generate_slhdsa<slhdsa::SLHDSA_SHA2_128s>("SLH-DSA-SHA2-128s", output_prefix, cert_info, password);
     } else if (algorithm == "slh-sha2-192f") {
-        success = generate_slhdsa<slhdsa::SLHDSA_SHA2_192f>("SLH-DSA-SHA2-192f", output_prefix, cert_info);
+        success = generate_slhdsa<slhdsa::SLHDSA_SHA2_192f>("SLH-DSA-SHA2-192f", output_prefix, cert_info, password);
     } else if (algorithm == "slh-sha2-192s") {
-        success = generate_slhdsa<slhdsa::SLHDSA_SHA2_192s>("SLH-DSA-SHA2-192s", output_prefix, cert_info);
+        success = generate_slhdsa<slhdsa::SLHDSA_SHA2_192s>("SLH-DSA-SHA2-192s", output_prefix, cert_info, password);
     } else if (algorithm == "slh-sha2-256f") {
-        success = generate_slhdsa<slhdsa::SLHDSA_SHA2_256f>("SLH-DSA-SHA2-256f", output_prefix, cert_info);
+        success = generate_slhdsa<slhdsa::SLHDSA_SHA2_256f>("SLH-DSA-SHA2-256f", output_prefix, cert_info, password);
     } else if (algorithm == "slh-sha2-256s") {
-        success = generate_slhdsa<slhdsa::SLHDSA_SHA2_256s>("SLH-DSA-SHA2-256s", output_prefix, cert_info);
+        success = generate_slhdsa<slhdsa::SLHDSA_SHA2_256s>("SLH-DSA-SHA2-256s", output_prefix, cert_info, password);
     } else {
         std::cerr << "Error: Unknown algorithm '" << algorithm << "'" << std::endl;
         std::cerr << "\nRun with --help to see available algorithms." << std::endl;
@@ -550,7 +718,13 @@ int main(int argc, char* argv[]) {
 
     if (success) {
         std::cout << "\n" << std::string(60, '=') << std::endl;
-        std::cout << "WARNING: Keep your secret key file secure!" << std::endl;
+        if (cert_info.encryption.encrypted) {
+            std::cout << "Secret key is password-protected (encrypted)." << std::endl;
+            std::cout << "You will need the password to use the secret key." << std::endl;
+        } else {
+            std::cout << "WARNING: Secret key is NOT encrypted!" << std::endl;
+            std::cout << "         Consider using --password-prompt for protection." << std::endl;
+        }
         std::cout << "         chmod 600 " << output_prefix << "_secret.key" << std::endl;
         std::cout << std::string(60, '=') << std::endl;
         return 0;

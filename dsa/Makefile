@@ -5,7 +5,7 @@
         dev shell clean help \
         demo-api demo-document demo-compare demo-cpp demo-app demo-app-down \
         cert-mldsa cert-slhdsa \
-        keygen keygen-cpp \
+        keygen keygen-cpp sign-cpp \
         keygen-mldsa44 keygen-mldsa65 keygen-mldsa87 keygen-slhdsa keygen-slhdsa-small \
         keygen-cpp-mldsa44 keygen-cpp-mldsa65 keygen-cpp-mldsa87 keygen-cpp-slhdsa keygen-cpp-slhdsa-small
 
@@ -93,6 +93,23 @@ help:
 	@echo ""
 	@echo "    make keygen-cpp ALG=mldsa65 OUT=secure PASSWORD=mysecret"
 	@echo "    # Creates password-protected secret key"
+	@echo ""
+	@echo "Signing:"
+	@echo "  make sign-cpp ALG=<alg> SK=<secret_key> MSG=<message_file> [options]"
+	@echo ""
+	@echo "  Options:"
+	@echo "    ALG=<alg>         Algorithm (mldsa44, mldsa65, mldsa87, slh-shake-128f, etc.)"
+	@echo "    SK=<file>         Secret key file (supports encrypted keys)"
+	@echo "    MSG=<file>        Message file to sign"
+	@echo "    TEXT=<text>       Sign text instead of file"
+	@echo "    OUT=<file>        Output signature file (default: stdout)"
+	@echo "    FORMAT=<fmt>      Output format: hex (default), base64, binary"
+	@echo "    PASSWORD=<pass>   Password for encrypted key"
+	@echo ""
+	@echo "  Examples:"
+	@echo "    make sign-cpp ALG=mldsa65 SK=./keys/mykey_secret.key MSG=document.txt"
+	@echo "    make sign-cpp ALG=mldsa65 SK=./keys/mykey_secret.key TEXT='Hello World'"
+	@echo "    make sign-cpp ALG=mldsa65 SK=./keys/mykey_secret.key MSG=doc.txt PASSWORD=mysecret"
 	@echo ""
 	@echo "  Shortcut targets (creates ./keys/key_*.key):"
 	@echo "    Python:             C++:"
@@ -268,6 +285,43 @@ keygen-cpp-slhdsa: keygen-cpp
 
 keygen-cpp-slhdsa-small: ALG=slh-shake-128s
 keygen-cpp-slhdsa-small: keygen-cpp
+
+# Signing variables
+SK ?=
+MSG ?=
+TEXT ?=
+FORMAT ?= hex
+
+# Build sign options
+SIGN_OPTS :=
+ifneq ($(TEXT),)
+  SIGN_OPTS += --message "$(TEXT)"
+endif
+ifneq ($(OUT),)
+  SIGN_OPTS += --output /out/$(notdir $(OUT))
+endif
+ifneq ($(FORMAT),)
+  SIGN_OPTS += --format $(FORMAT)
+endif
+ifneq ($(PASSWORD),)
+  SIGN_OPTS += --password "$(PASSWORD)"
+endif
+
+# C++ signing tool
+sign-cpp: build-cpp
+ifeq ($(SK),)
+	$(error SK (secret key file) is required. Usage: make sign-cpp ALG=mldsa65 SK=key_secret.key MSG=file.txt)
+endif
+ifeq ($(MSG)$(TEXT),)
+	$(error MSG (message file) or TEXT is required. Usage: make sign-cpp ALG=mldsa65 SK=key_secret.key MSG=file.txt)
+endif
+	@mkdir -p $(dir $(OUT))keys 2>/dev/null || true
+	docker run --rm \
+		-v $(PWD):/work \
+		-v $(PWD)/$(dir $(OUT)):/out \
+		-w /work \
+		$(IMAGE_NAME_CPP) \
+		./build/sign $(ALG) $(SK) $(if $(MSG),$(MSG),) $(SIGN_OPTS)
 
 # Demo targets
 demo-api: build-py

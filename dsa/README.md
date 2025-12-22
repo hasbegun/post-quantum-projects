@@ -424,6 +424,52 @@ The certificate JSON indicates encryption status:
 }
 ```
 
+### Signing Messages with Encrypted Keys
+
+Use the `sign` tool to sign messages with password-protected secret keys:
+
+**Using Make:**
+```bash
+# Sign a file (prompts for password if key is encrypted)
+make sign-cpp ALG=mldsa65 SK=./keys/mykey_secret.key MSG=document.txt
+
+# Sign with password on command line
+make sign-cpp ALG=mldsa65 SK=./keys/mykey_secret.key MSG=document.txt PASSWORD=mysecret
+
+# Sign inline text
+make sign-cpp ALG=mldsa65 SK=./keys/mykey_secret.key TEXT="Hello World"
+
+# Output to file in base64 format
+make sign-cpp ALG=mldsa65 SK=./keys/mykey_secret.key MSG=doc.txt OUT=signature.b64 FORMAT=base64
+```
+
+**Using sign binary directly:**
+```bash
+# Sign a file (auto-detects encrypted keys and prompts for password)
+./sign mldsa65 mykey_secret.key document.txt
+
+# With password
+./sign mldsa65 mykey_secret.key document.txt --password "mysecret"
+
+# Sign inline text
+./sign mldsa65 mykey_secret.key --message "Hello World"
+
+# Output formats: hex (default), base64, binary
+./sign mldsa65 mykey_secret.key doc.txt --format base64 --output signature.b64
+
+# Password from stdin (for scripts)
+echo "password" | ./sign mldsa65 mykey_secret.key doc.txt --password-stdin
+```
+
+**Example workflow:**
+```bash
+# 1. Generate password-protected keys
+make keygen-cpp ALG=mldsa65 OUT=mykey PASSWORD=mysecret
+
+# 2. Sign a message (will prompt for password or use PASSWORD=)
+make sign-cpp ALG=mldsa65 SK=./keys/mykey_secret.key MSG=document.txt PASSWORD=mysecret
+```
+
 ### Example 6: Multi-Container Demo App
 
 A complete client/server demo showing how post-quantum signatures work in distributed systems.

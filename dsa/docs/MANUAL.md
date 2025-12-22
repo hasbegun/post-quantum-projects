@@ -7,17 +7,19 @@ This manual covers installation, key generation, certificate creation, and integ
 1. [Installation](#installation)
 2. [Choosing an Algorithm](#choosing-an-algorithm)
 3. [Key Generation](#key-generation)
-4. [Signing and Verification](#signing-and-verification)
-5. [Use Cases](#use-cases)
+4. [Password Protection](#password-protection)
+5. [Signing Tool](#signing-tool)
+6. [Signing and Verification](#signing-and-verification)
+7. [Use Cases](#use-cases)
    - [API Authentication](#api-authentication)
    - [Document Signing](#document-signing)
    - [Firmware Signing](#firmware-signing)
    - [Code Signing](#code-signing)
-6. [Web Server Integration](#web-server-integration)
+8. [Web Server Integration](#web-server-integration)
    - [Nginx Integration](#nginx-integration)
    - [Caddy Integration](#caddy-integration)
-7. [Programming Examples](#programming-examples)
-8. [Security Considerations](#security-considerations)
+9. [Programming Examples](#programming-examples)
+10. [Security Considerations](#security-considerations)
 
 ---
 
@@ -156,6 +158,7 @@ make keygen-cpp ALG=mldsa65 OUT=./keys \
 #   EMAIL=<email>    Email address
 #   DAYS=<n>         Validity period in days (default: 365)
 #   SERIAL=<hex>     Serial number in hex (optional)
+#   PASSWORD=<pass>  Encrypt secret key with password
 
 # Keys are saved to:
 # ./keys/<algorithm>_public.key
@@ -288,6 +291,198 @@ def generate_slhdsa_keys():
 2. **File permissions**: `chmod 600 secret.key` (owner read/write only)
 3. **Backup**: Keep encrypted backups in separate physical locations
 4. **Rotation**: Plan for key rotation (especially for long-lived services)
+5. **Password protection**: Use `--password` option to encrypt secret keys at rest
+
+---
+
+## Password Protection
+
+Secret keys can be encrypted with a password for secure storage. This provides an additional layer of protection beyond file system permissions.
+
+### Encryption Details
+
+- **Key Derivation**: PBKDF2-HMAC-SHA256 with 600,000 iterations (OWASP 2023 recommendation)
+- **Encryption**: AES-256-GCM (authenticated encryption)
+- **Format**: Custom binary format with magic header `PQCRYPT1`
+
+### Using Password Protection with Make
+
+```bash
+# Generate password-protected keys
+make keygen-cpp ALG=mldsa65 OUT=secure PASSWORD=mysecretpassword
+
+# With certificate metadata
+make keygen-cpp ALG=mldsa65 OUT=api \
+    CN=api.example.com \
+    ORG="Example Corp" \
+    PASSWORD=mysecretpassword
+```
+
+> **Note:** Use `PASSWORD=value` (Make variable syntax), NOT `--password value`.
+
+### Using Password Protection with keygen Binary
+
+```bash
+# Password on command line
+./keygen mldsa65 mykey --password "mysecretpassword"
+
+# Interactive password prompt (recommended for security)
+./keygen mldsa65 mykey --password-prompt
+
+# Password from stdin (for scripts)
+echo "mysecretpassword" | ./keygen mldsa65 mykey --password-stdin
+```
+
+### Encrypted Key File Format
+
+The encrypted secret key file has the following structure:
+
+| Offset | Size | Description |
+|--------|------|-------------|
+| 0 | 8 | Magic header: `PQCRYPT1` |
+| 8 | 4 | Format version (uint32 LE) |
+| 12 | 4 | Algorithm ID (uint32 LE) |
+| 16 | 32 | Random salt for PBKDF2 |
+| 48 | 12 | IV/Nonce for AES-GCM |
+| 60 | 16 | Authentication tag |
+| 76 | 4 | Original key size (uint32 LE) |
+| 80 | ... | Encrypted key data |
+
+### Certificate Encryption Status
+
+The certificate JSON indicates whether the secret key is encrypted:
+
+```json
+{
+  "encryption": {
+    "encrypted": true,
+    "cipher": "AES-256-GCM",
+    "kdf": "PBKDF2-HMAC-SHA256",
+    "kdfIterations": 600000
+  }
+}
+```
+
+For unencrypted keys:
+
+```json
+{
+  "encryption": {
+    "encrypted": false
+  }
+}
+```
+
+---
+
+## Signing Tool
+
+The `sign` tool allows you to sign messages using secret keys, with full support for password-protected (encrypted) keys.
+
+### Basic Usage
+
+```bash
+# Sign a file
+./sign <algorithm> <secret_key_file> <message_file> [options]
+
+# Sign inline text
+./sign <algorithm> <secret_key_file> --message <text> [options]
+```
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--message <text>` | Sign inline text instead of reading from file |
+| `--output <file>` | Write signature to file (default: stdout) |
+| `--format <fmt>` | Output format: `hex` (default), `base64`, `binary` |
+| `--password <pass>` | Password for encrypted secret key |
+| `--password-stdin` | Read password from stdin (first line) |
+
+### Using Sign Tool with Make
+
+```bash
+# Sign a file (prompts for password if key is encrypted)
+make sign-cpp ALG=mldsa65 SK=./keys/mykey_secret.key MSG=document.txt
+
+# Sign with password
+make sign-cpp ALG=mldsa65 SK=./keys/mykey_secret.key MSG=document.txt PASSWORD=mysecret
+
+# Sign inline text
+make sign-cpp ALG=mldsa65 SK=./keys/mykey_secret.key TEXT="Hello World"
+
+# Output to file in base64 format
+make sign-cpp ALG=mldsa65 SK=./keys/mykey_secret.key MSG=doc.txt OUT=signature.b64 FORMAT=base64
+```
+
+### Using Sign Tool Directly
+
+```bash
+# Sign a file (auto-detects encrypted keys and prompts for password)
+./sign mldsa65 mykey_secret.key document.txt
+
+# With password on command line
+./sign mldsa65 mykey_secret.key document.txt --password "mysecret"
+
+# Sign inline text
+./sign mldsa65 mykey_secret.key --message "Hello World"
+
+# Output formats
+./sign mldsa65 mykey_secret.key doc.txt --format hex      # Default
+./sign mldsa65 mykey_secret.key doc.txt --format base64
+./sign mldsa65 mykey_secret.key doc.txt --format binary --output sig.bin
+
+# Password from stdin (for automation)
+echo "password" | ./sign mldsa65 mykey_secret.key doc.txt --password-stdin
+```
+
+### Complete Workflow Example
+
+```bash
+# 1. Generate password-protected keys
+make keygen-cpp ALG=mldsa65 OUT=mykey PASSWORD=mysecret123
+
+# 2. Create a document to sign
+echo "This is an important document" > document.txt
+
+# 3. Sign the document (will use encrypted key)
+make sign-cpp ALG=mldsa65 SK=./keys/mykey_secret.key MSG=document.txt PASSWORD=mysecret123
+
+# Output: signature in hex format to stdout
+```
+
+### Supported Algorithms
+
+**ML-DSA (FIPS 204):**
+- `mldsa44` - Security Level 1 (128-bit)
+- `mldsa65` - Security Level 3 (192-bit)
+- `mldsa87` - Security Level 5 (256-bit)
+
+**SLH-DSA (FIPS 205):**
+- `slh-shake-128f`, `slh-shake-128s` - SHAKE, Level 1
+- `slh-shake-192f`, `slh-shake-192s` - SHAKE, Level 3
+- `slh-shake-256f`, `slh-shake-256s` - SHAKE, Level 5
+- `slh-sha2-128f`, `slh-sha2-128s` - SHA2, Level 1
+- `slh-sha2-192f`, `slh-sha2-192s` - SHA2, Level 3
+- `slh-sha2-256f`, `slh-sha2-256s` - SHA2, Level 5
+
+### Error Handling
+
+The sign tool provides clear error messages:
+
+```bash
+# Wrong password
+$ ./sign mldsa65 encrypted_key.key doc.txt --password wrongpass
+Error: Decryption failed: wrong password or corrupted data
+
+# Missing message
+$ ./sign mldsa65 key.key
+Error: No message provided. Use <message_file> or --message <text>
+
+# Unknown algorithm
+$ ./sign unknown key.key doc.txt
+Error: Unknown algorithm 'unknown'
+```
 
 ---
 
@@ -1835,10 +2030,17 @@ if __name__ == '__main__':
 1. **Generate keys securely**: Use cryptographically secure random number generators
 2. **Protect secret keys**:
    - Store in HSM when possible
+   - Use password protection (`--password-prompt`) for encrypted storage
    - Use encrypted storage (LUKS, encrypted keychain)
+   - Set restrictive file permissions (`chmod 600`)
    - Never log or transmit secret keys
-3. **Key rotation**: Plan for regular key rotation
-4. **Key revocation**: Implement certificate revocation lists or OCSP
+3. **Password-protected keys**:
+   - Use strong passwords (12+ characters, mixed case, numbers, symbols)
+   - The implementation uses PBKDF2 with 600,000 iterations (OWASP 2023)
+   - AES-256-GCM provides authenticated encryption
+   - Password prompts disable terminal echo for security
+4. **Key rotation**: Plan for regular key rotation
+5. **Key revocation**: Implement certificate revocation lists or OCSP
 
 ### Implementation Security
 

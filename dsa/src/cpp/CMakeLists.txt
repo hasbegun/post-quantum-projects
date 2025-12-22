@@ -83,6 +83,16 @@ target_link_libraries(keygen PRIVATE
     slhdsa
 )
 
+# Signing tool
+add_executable(sign
+    sign.cpp
+)
+
+target_link_libraries(sign PRIVATE
+    mldsa
+    slhdsa
+)
+
 # DSA demo executable
 add_executable(dsa_demo
     ${CMAKE_CURRENT_SOURCE_DIR}/../../examples/cpp/demo.cpp

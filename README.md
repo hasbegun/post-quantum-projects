@@ -1,2 +1,11 @@
-This project is a collection of small projects that interested me to dig in.
-DSA is one of them.
+# Post-Quantum Projects
+
+A collection of post-quantum cryptography implementations and experiments.
+
+## Contents
+
+- **DSA** - Post-quantum digital signature algorithms
+
+## Overview
+
+This repository contains implementations of cryptographic algorithms designed to be secure against quantum computer attacks. These projects serve as explorations into the post-quantum cryptography landscape.

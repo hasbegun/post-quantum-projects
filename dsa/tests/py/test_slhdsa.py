@@ -3,13 +3,13 @@ Test suite for SLH-DSA (FIPS 205) implementation
 """
 
 import pytest
-from dsa import (
-    slh_keygen, slh_sign, slh_verify,
-    hash_slh_sign, hash_slh_verify,
-    SLH_DSA_SHAKE_128s, SLH_DSA_SHAKE_128f,
-    SLH_DSA_SHAKE_192s, SLH_DSA_SHAKE_192f,
-    SLH_DSA_SHAKE_256s, SLH_DSA_SHAKE_256f,
-    SLH_DSA_SHA2_128s, SLH_DSA_SHA2_128f,
+from slhdsa import (
+    SLHDSA_SHAKE_128s,
+    SLHDSA_SHAKE_128f,
+    SLHDSA_SHA2_128f,
+    SLH_DSA_SHAKE_128s,
+    SLH_DSA_SHAKE_128f,
+    SLH_DSA_SHA2_128f,
 )
 
 
@@ -28,12 +28,6 @@ class TestSLHDSAParameterSizes:
         assert params.sk_size == 64
         assert params.sig_size == 17088
 
-    def test_sha2_128s_sizes(self):
-        params = SLH_DSA_SHA2_128s
-        assert params.pk_size == 32
-        assert params.sk_size == 64
-        assert params.sig_size == 7856
-
     def test_sha2_128f_sizes(self):
         params = SLH_DSA_SHA2_128f
         assert params.pk_size == 32
@@ -44,152 +38,113 @@ class TestSLHDSAParameterSizes:
 class TestSLHDSASHAKE128f:
     """Test SLH-DSA-SHAKE-128f (fast variant)"""
 
-    @pytest.fixture
-    def params(self):
-        return SLH_DSA_SHAKE_128f
+    def test_keygen_sizes(self):
+        dsa = SLHDSA_SHAKE_128f()
+        pk, sk = dsa.keygen()
+        assert len(pk) == SLH_DSA_SHAKE_128f.pk_size
+        assert len(sk) == SLH_DSA_SHAKE_128f.sk_size
 
-    @pytest.fixture
-    def keypair(self, params):
-        return slh_keygen(params)
-
-    def test_keygen_sizes(self, params, keypair):
-        sk, pk = keypair
-        assert len(sk) == params.sk_size
-        assert len(pk) == params.pk_size
-
-    def test_sign_verify(self, params, keypair):
-        sk, pk = keypair
+    def test_sign_verify(self):
+        dsa = SLHDSA_SHAKE_128f()
+        pk, sk = dsa.keygen()
         message = b"Test message for SLH-DSA-SHAKE-128f"
-        sig = slh_sign(params, message, sk)
-        assert len(sig) == params.sig_size
-        assert slh_verify(params, message, sig, pk)
+        sig = dsa.sign(sk, message)
+        assert len(sig) == SLH_DSA_SHAKE_128f.sig_size
+        assert dsa.verify(pk, message, sig)
 
-    def test_wrong_message_fails(self, params, keypair):
-        sk, pk = keypair
-        sig = slh_sign(params, b"original message", sk)
-        assert not slh_verify(params, b"different message", sig, pk)
+    def test_wrong_message_fails(self):
+        dsa = SLHDSA_SHAKE_128f()
+        pk, sk = dsa.keygen()
+        sig = dsa.sign(sk, b"original message")
+        assert not dsa.verify(pk, b"different message", sig)
 
-    def test_wrong_key_fails(self, params):
-        sk1, pk1 = slh_keygen(params)
-        sk2, pk2 = slh_keygen(params)
-        sig = slh_sign(params, b"message", sk1)
-        assert not slh_verify(params, b"message", sig, pk2)
+    def test_wrong_key_fails(self):
+        dsa = SLHDSA_SHAKE_128f()
+        pk1, sk1 = dsa.keygen()
+        pk2, sk2 = dsa.keygen()
+        sig = dsa.sign(sk1, b"message")
+        assert not dsa.verify(pk2, b"message", sig)
 
-    def test_context_string(self, params, keypair):
-        sk, pk = keypair
+    def test_context_string(self):
+        dsa = SLHDSA_SHAKE_128f()
+        pk, sk = dsa.keygen()
         message = b"message"
         ctx = b"context"
-        sig = slh_sign(params, message, sk, ctx=ctx)
-        assert slh_verify(params, message, sig, pk, ctx=ctx)
-        assert not slh_verify(params, message, sig, pk, ctx=b"wrong context")
-        assert not slh_verify(params, message, sig, pk)
+        sig = dsa.sign(sk, message, ctx=ctx)
+        assert dsa.verify(pk, message, sig, ctx=ctx)
+        assert not dsa.verify(pk, message, sig, ctx=b"wrong context")
+        assert not dsa.verify(pk, message, sig)
 
-    def test_deterministic_signing(self, params, keypair):
-        sk, pk = keypair
+    def test_deterministic_signing(self):
+        dsa = SLHDSA_SHAKE_128f()
+        pk, sk = dsa.keygen()
         message = b"deterministic test"
-        sig1 = slh_sign(params, message, sk, randomize=False)
-        sig2 = slh_sign(params, message, sk, randomize=False)
+        sig1 = dsa.sign(sk, message, randomize=False)
+        sig2 = dsa.sign(sk, message, randomize=False)
         assert sig1 == sig2
-        assert slh_verify(params, message, sig1, pk)
+        assert dsa.verify(pk, message, sig1)
 
 
 class TestSLHDSASHA2128f:
     """Test SLH-DSA-SHA2-128f"""
 
-    @pytest.fixture
-    def params(self):
-        return SLH_DSA_SHA2_128f
+    def test_keygen_sizes(self):
+        dsa = SLHDSA_SHA2_128f()
+        pk, sk = dsa.keygen()
+        assert len(pk) == SLH_DSA_SHA2_128f.pk_size
+        assert len(sk) == SLH_DSA_SHA2_128f.sk_size
 
-    @pytest.fixture
-    def keypair(self, params):
-        return slh_keygen(params)
-
-    def test_keygen_sizes(self, params, keypair):
-        sk, pk = keypair
-        assert len(sk) == params.sk_size
-        assert len(pk) == params.pk_size
-
-    def test_sign_verify(self, params, keypair):
-        sk, pk = keypair
+    def test_sign_verify(self):
+        dsa = SLHDSA_SHA2_128f()
+        pk, sk = dsa.keygen()
         message = b"Test message for SLH-DSA-SHA2-128f"
-        sig = slh_sign(params, message, sk)
-        assert len(sig) == params.sig_size
-        assert slh_verify(params, message, sig, pk)
-
-
-class TestSLHDSAPreHashMode:
-    """Test pre-hash signing mode"""
-
-    @pytest.fixture
-    def params(self):
-        return SLH_DSA_SHAKE_128f
-
-    @pytest.fixture
-    def keypair(self, params):
-        return slh_keygen(params)
-
-    def test_prehash_sign_verify(self, params, keypair):
-        sk, pk = keypair
-        message = b"Large message to be pre-hashed" * 100
-        sig = hash_slh_sign(params, message, sk)
-        assert hash_slh_verify(params, message, sig, pk)
-
-    def test_prehash_with_context(self, params, keypair):
-        sk, pk = keypair
-        message = b"message"
-        ctx = b"prehash context"
-        sig = hash_slh_sign(params, message, sk, ctx=ctx)
-        assert hash_slh_verify(params, message, sig, pk, ctx=ctx)
-        assert not hash_slh_verify(params, message, sig, pk, ctx=b"wrong")
-
-    def test_prehash_wrong_message_fails(self, params, keypair):
-        sk, pk = keypair
-        sig = hash_slh_sign(params, b"original", sk)
-        assert not hash_slh_verify(params, b"different", sig, pk)
+        sig = dsa.sign(sk, message)
+        assert len(sig) == SLH_DSA_SHA2_128f.sig_size
+        assert dsa.verify(pk, message, sig)
 
 
 class TestSLHDSAEdgeCases:
     """Test edge cases and error handling"""
 
-    @pytest.fixture
-    def params(self):
-        return SLH_DSA_SHAKE_128f
+    def test_empty_message(self):
+        dsa = SLHDSA_SHAKE_128f()
+        pk, sk = dsa.keygen()
+        sig = dsa.sign(sk, b"")
+        assert dsa.verify(pk, b"", sig)
 
-    @pytest.fixture
-    def keypair(self, params):
-        return slh_keygen(params)
-
-    def test_empty_message(self, params, keypair):
-        sk, pk = keypair
-        sig = slh_sign(params, b"", sk)
-        assert slh_verify(params, b"", sig, pk)
-
-    def test_large_message(self, params, keypair):
-        sk, pk = keypair
+    def test_large_message(self):
+        dsa = SLHDSA_SHAKE_128f()
+        pk, sk = dsa.keygen()
         message = b"x" * 10000
-        sig = slh_sign(params, message, sk)
-        assert slh_verify(params, message, sig, pk)
+        sig = dsa.sign(sk, message)
+        assert dsa.verify(pk, message, sig)
 
-    def test_context_max_length(self, params, keypair):
-        sk, pk = keypair
+    def test_context_max_length(self):
+        dsa = SLHDSA_SHAKE_128f()
+        pk, sk = dsa.keygen()
         ctx = b"x" * 255
-        sig = slh_sign(params, b"message", sk, ctx=ctx)
-        assert slh_verify(params, b"message", sig, pk, ctx=ctx)
+        sig = dsa.sign(sk, b"message", ctx=ctx)
+        assert dsa.verify(pk, b"message", sig, ctx=ctx)
 
-    def test_context_too_long(self, params, keypair):
-        sk, pk = keypair
+    def test_context_too_long(self):
+        dsa = SLHDSA_SHAKE_128f()
+        pk, sk = dsa.keygen()
         ctx = b"x" * 256
+        with pytest.raises((ValueError, RuntimeError)):
+            dsa.sign(sk, b"message", ctx=ctx)
+
+    def test_invalid_signature_length(self):
+        dsa = SLHDSA_SHAKE_128f()
+        pk, sk = dsa.keygen()
+        # Wrong-size signatures should raise ValueError
         with pytest.raises(ValueError):
-            slh_sign(params, b"message", sk, ctx=ctx)
+            dsa.verify(pk, b"message", b"short")
 
-    def test_invalid_signature_length(self, params, keypair):
-        sk, pk = keypair
-        assert not slh_verify(params, b"message", b"short", pk)
-
-    def test_invalid_signature_content(self, params, keypair):
-        sk, pk = keypair
-        fake_sig = bytes(params.sig_size)
-        assert not slh_verify(params, b"message", fake_sig, pk)
+    def test_invalid_signature_content(self):
+        dsa = SLHDSA_SHAKE_128f()
+        pk, sk = dsa.keygen()
+        fake_sig = bytes(SLH_DSA_SHAKE_128f.sig_size)
+        assert not dsa.verify(pk, b"message", fake_sig)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,37 @@
+site_name: PQC-DSA Documentation
+site_description: Post-Quantum Digital Signature Algorithms (ML-DSA & SLH-DSA)
+repo_url: https://github.com/example/pqc-dsa
+
+theme:
+  name: material
+  palette:
+    primary: indigo
+    accent: indigo
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - User Guide:
+    - Installation: guide/installation.md
+    - Quick Start: guide/quickstart.md
+  - API Reference:
+    - ML-DSA: api/mldsa.md
+    - SLH-DSA: api/slhdsa.md
+  - Development:
+    - Building: dev/building.md
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - admonitions
+
+plugins:
+  - search

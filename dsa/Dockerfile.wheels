@@ -1,0 +1,33 @@
+# Dockerfile for building manylinux wheels
+# Uses manylinux_2_28 for broad compatibility
+
+FROM quay.io/pypa/manylinux_2_28_x86_64
+
+# Install OpenSSL development files
+RUN yum install -y openssl-devel && yum clean all
+
+WORKDIR /app
+
+# Copy source code
+COPY src/ ./src/
+COPY tests/ ./tests/
+COPY pyproject.toml CMakeLists.txt README.md ./
+
+# Build wheels for multiple Python versions
+RUN for PYBIN in /opt/python/cp3{9,10,11,12}*/bin; do \
+    echo "Building for ${PYBIN}..." && \
+    ${PYBIN}/pip install --no-cache-dir scikit-build-core pybind11 && \
+    ${PYBIN}/pip wheel . -w wheelhouse/ --no-deps; \
+done
+
+# Audit and repair wheels for manylinux compatibility
+RUN for whl in wheelhouse/*.whl; do \
+    echo "Repairing ${whl}..." && \
+    auditwheel repair "$whl" -w /app/dist/ || echo "Skipping ${whl}"; \
+done
+
+# List built wheels
+RUN ls -la /app/dist/
+
+# Default command shows the wheels
+CMD ["ls", "-la", "/app/dist/"]

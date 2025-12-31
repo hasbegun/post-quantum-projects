@@ -1,4 +1,5 @@
-.PHONY: build build-py build-cpp test test-py test-cpp \
+.PHONY: build build-py build-cpp build-wheels \
+        test test-py test-cpp test-native test-cross-validation test-benchmarks \
         test-mldsa test-slhdsa test-mldsa-cpp test-slhdsa-cpp \
         test-kat test-kat-mldsa test-kat-slhdsa \
         test-keygen test-keygen-py test-keygen-cpp \
@@ -7,11 +8,13 @@
         cert-mldsa cert-slhdsa \
         keygen keygen-cpp sign-cpp \
         keygen-mldsa44 keygen-mldsa65 keygen-mldsa87 keygen-slhdsa keygen-slhdsa-small \
-        keygen-cpp-mldsa44 keygen-cpp-mldsa65 keygen-cpp-mldsa87 keygen-cpp-slhdsa keygen-cpp-slhdsa-small
+        keygen-cpp-mldsa44 keygen-cpp-mldsa65 keygen-cpp-mldsa87 keygen-cpp-slhdsa keygen-cpp-slhdsa-small \
+        docs docs-serve
 
 # Docker image names
 IMAGE_NAME_PY := dsa-py
 IMAGE_NAME_CPP := dsa-cpp
+IMAGE_NAME_WHEELS := dsa-wheels
 CONTAINER_NAME := dsa-dev
 
 help:
@@ -19,18 +22,22 @@ help:
 	@echo "==========================================="
 	@echo ""
 	@echo "Build:"
-	@echo "  make build        - Build all Docker images"
-	@echo "  make build-py     - Build Python Docker image"
-	@echo "  make build-cpp    - Build C++ Docker image"
+	@echo "  make build          - Build all Docker images"
+	@echo "  make build-py       - Build Python image (with native C++ bindings)"
+	@echo "  make build-cpp      - Build C++ image"
+	@echo "  make build-wheels   - Build Python wheels for distribution"
 	@echo ""
 	@echo "Test:"
-	@echo "  make test         - Run all tests (Python + C++)"
-	@echo "  make test-py      - Run all Python tests"
-	@echo "  make test-cpp     - Run all C++ tests"
-	@echo "  make test-mldsa   - Run ML-DSA Python tests only"
-	@echo "  make test-slhdsa  - Run SLH-DSA Python tests only"
-	@echo "  make test-mldsa-cpp   - Run ML-DSA C++ tests only"
-	@echo "  make test-slhdsa-cpp  - Run SLH-DSA C++ tests only"
+	@echo "  make test           - Run all tests (Python + C++)"
+	@echo "  make test-py        - Run all Python tests (native bindings)"
+	@echo "  make test-cpp       - Run all C++ tests"
+	@echo "  make test-native    - Run native binding unit tests only"
+	@echo "  make test-cross-validation - Run C++/Python interop tests"
+	@echo "  make test-benchmarks - Run performance benchmarks"
+	@echo "  make test-mldsa     - Run ML-DSA Python tests only"
+	@echo "  make test-slhdsa    - Run SLH-DSA Python tests only"
+	@echo "  make test-mldsa-cpp - Run ML-DSA C++ tests only"
+	@echo "  make test-slhdsa-cpp - Run SLH-DSA C++ tests only"
 	@echo ""
 	@echo "NIST KAT Tests (C++):"
 	@echo "  make test-kat         - Run all NIST KAT tests"
@@ -41,6 +48,10 @@ help:
 	@echo "  make test-keygen      - Run all keygen certificate tests"
 	@echo "  make test-keygen-py   - Run Python keygen tests"
 	@echo "  make test-keygen-cpp  - Run C++ keygen certificate tests"
+	@echo ""
+	@echo "Documentation:"
+	@echo "  make docs           - Build documentation"
+	@echo "  make docs-serve     - Serve docs locally at http://localhost:8000"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make demo-api      - API authentication (ML-DSA Python)"
@@ -133,6 +144,13 @@ build-py:
 build-cpp:
 	docker build -t $(IMAGE_NAME_CPP) -f Dockerfile.cpp .
 
+build-wheels:
+	docker build -t $(IMAGE_NAME_WHEELS) -f Dockerfile.wheels .
+	@mkdir -p dist
+	docker run --rm -v $(PWD)/dist:/out $(IMAGE_NAME_WHEELS) sh -c "cp -r /app/dist/* /out/ 2>/dev/null || true"
+	@echo "Wheels built in ./dist/"
+	@ls -la dist/
+
 # Test targets
 test: test-py test-cpp
 
@@ -155,6 +173,18 @@ test-mldsa-cpp: build-cpp
 test-slhdsa-cpp: build-cpp
 	docker run --rm $(IMAGE_NAME_CPP) ./build/test_slhdsa
 
+# Native binding tests
+test-native: build-py
+	docker run --rm $(IMAGE_NAME_PY) python -m pytest tests/py/test_mldsa_native.py tests/py/test_slhdsa_native.py -v
+
+# Cross-validation tests (C++ ↔ Python interop)
+test-cross-validation: build-py
+	docker run --rm $(IMAGE_NAME_PY) python -m pytest tests/py/test_cross_validation.py -v
+
+# Performance benchmarks
+test-benchmarks: build-py
+	docker run --rm $(IMAGE_NAME_PY) python -m pytest tests/benchmarks/ -v --benchmark-only
+
 # NIST KAT Tests (FIPS 204 & 205 compliance)
 test-kat: test-kat-mldsa test-kat-slhdsa
 
@@ -172,6 +202,16 @@ test-keygen-py: build-py
 
 test-keygen-cpp: build-cpp
 	docker run --rm $(IMAGE_NAME_CPP) ./build/test_keygen
+
+# Documentation
+docs:
+	@echo "Building documentation..."
+	@mkdir -p docs/_build
+	docker run --rm -v $(PWD)/docs:/docs squidfunk/mkdocs-material build -d /docs/_build || echo "Install mkdocs-material or run: pip install mkdocs-material"
+
+docs-serve:
+	@echo "Serving documentation at http://localhost:8000"
+	docker run --rm -p 8000:8000 -v $(PWD)/docs:/docs squidfunk/mkdocs-material serve -a 0.0.0.0:8000 || echo "Install mkdocs-material or run: pip install mkdocs-material && mkdocs serve"
 
 # Development
 dev:
@@ -357,4 +397,6 @@ clean:
 	@docker rm -f $(CONTAINER_NAME) 2>/dev/null || true
 	@docker rmi -f $(IMAGE_NAME_PY) 2>/dev/null || true
 	@docker rmi -f $(IMAGE_NAME_CPP) 2>/dev/null || true
-	@echo "Cleaned up Docker resources"
+	@docker rmi -f $(IMAGE_NAME_WHEELS) 2>/dev/null || true
+	@rm -rf dist/ build/ *.egg-info/ 2>/dev/null || true
+	@echo "Cleaned up Docker resources and build artifacts"

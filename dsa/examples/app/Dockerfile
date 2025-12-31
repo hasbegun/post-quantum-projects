@@ -1,25 +1,28 @@
 # Dockerfile for Post-Quantum DSA Demo Application
-#
-# This image contains both the DSA library and the demo app.
+# Builds with native C++ bindings
 
 FROM python:3.11-slim
 
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    libssl-dev \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# Install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
 # Copy DSA source code
-COPY src/py/ ./src/py/
+COPY src/ ./src/
+COPY pyproject.toml CMakeLists.txt README.md ./
 
 # Copy demo app
 COPY examples/app/ ./examples/app/
 
-# Install the DSA package
-COPY pyproject.toml .
-COPY README.md .
-RUN pip install -e .
+# Install build tools and the package
+RUN pip install --no-cache-dir scikit-build-core pybind11
+RUN pip install -v .
 
 # Default command
 CMD ["python", "--version"]

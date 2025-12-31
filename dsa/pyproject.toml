@@ -1,9 +1,9 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["scikit-build-core>=0.8", "pybind11>=2.11"]
+build-backend = "scikit_build_core.build"
 
 [project]
-name = "dsa"
+name = "pqc-dsa"
 version = "1.0.0"
 description = "Post-Quantum Digital Signature Algorithms - ML-DSA (FIPS 204) & SLH-DSA (FIPS 205)"
 readme = "README.md"
@@ -21,7 +21,8 @@ keywords = [
     "fips-204",
     "fips-205",
     "dilithium",
-    "sphincs"
+    "sphincs",
+    "pybind11"
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -32,20 +33,71 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: C++",
     "Topic :: Security :: Cryptography",
+    "Operating System :: OS Independent",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
+    "pytest-benchmark>=4.0.0",
 ]
 
-[tool.setuptools]
-packages = ["dsa", "dsa.mldsa", "dsa.slhdsa"]
-package-dir = {"dsa" = "src/py", "dsa.mldsa" = "src/py/mldsa", "dsa.slhdsa" = "src/py/slhdsa"}
+[project.urls]
+Homepage = "https://github.com/example/pqc-dsa"
+Documentation = "https://github.com/example/pqc-dsa#readme"
+Issues = "https://github.com/example/pqc-dsa/issues"
+
+# scikit-build-core configuration
+[tool.scikit-build]
+cmake.build-type = "Release"
+cmake.args = ["-DBUILD_PYTHON_BINDINGS=ON", "-DBUILD_TESTING=OFF"]
+wheel.packages = ["src/py/mldsa", "src/py/slhdsa"]
+wheel.install-dir = "."
+sdist.include = [
+    "src/cpp/**/*.hpp",
+    "src/cpp/**/*.cpp",
+    "src/py/**/*.py",
+    "src/py/**/*.pyi",
+    "CMakeLists.txt",
+]
+
+[tool.scikit-build.cmake.define]
+BUILD_PYTHON_BINDINGS = "ON"
+BUILD_TESTING = "OFF"
+
+# Specify where to install the compiled extensions
+[[tool.scikit-build.overrides]]
+if.platform-system = "linux"
+wheel.install-dir = "."
+
+[[tool.scikit-build.overrides]]
+if.platform-system = "darwin"
+wheel.install-dir = "."
+
+[[tool.scikit-build.overrides]]
+if.platform-system = "win32"
+wheel.install-dir = "."
 
 [tool.pytest.ini_options]
 testpaths = ["tests/py"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "-v"
+
+[tool.cibuildwheel]
+build = ["cp39-*", "cp310-*", "cp311-*", "cp312-*"]
+skip = ["*-musllinux*", "*-win32", "*-manylinux_i686"]
+
+[tool.cibuildwheel.linux]
+before-all = "yum install -y openssl-devel || apt-get update && apt-get install -y libssl-dev"
+manylinux-x86_64-image = "manylinux_2_28"
+manylinux-aarch64-image = "manylinux_2_28"
+
+[tool.cibuildwheel.macos]
+before-all = "brew install openssl@3"
+environment = { OPENSSL_ROOT_DIR = "/opt/homebrew/opt/openssl@3" }
+
+[tool.cibuildwheel.windows]
+before-all = "choco install openssl -y"

@@ -303,7 +303,7 @@ class TestKeyFileContents:
     def test_keys_are_valid(self):
         """Test that generated keys can sign/verify"""
         from examples.py.generate_keys import generate_mldsa_keys, Subject, CertificateInfo
-        from dsa import MLDSA65
+        from mldsa import MLDSA65
         with tempfile.TemporaryDirectory() as tmpdir:
             cert_info = CertificateInfo(subject=Subject())
             output_prefix = os.path.join(tmpdir, "testkey")

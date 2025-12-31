@@ -94,7 +94,7 @@ class CertificateInfo:
 
 def generate_mldsa_keys(level: str, output_prefix: str, cert_info: CertificateInfo):
     """Generate ML-DSA key pair with certificate metadata."""
-    from dsa import MLDSA44, MLDSA65, MLDSA87
+    from mldsa import MLDSA44, MLDSA65, MLDSA87
 
     algorithms = {
         "mldsa44": (MLDSA44, 2420),   # (class, signature_size)
@@ -176,23 +176,29 @@ def generate_mldsa_keys(level: str, output_prefix: str, cert_info: CertificateIn
 
 def generate_slhdsa_keys(variant: str, output_prefix: str, cert_info: CertificateInfo):
     """Generate SLH-DSA key pair with certificate metadata."""
-    from dsa import slh_keygen
-    from dsa.slhdsa.parameters import PARAMETER_SETS
+    from slhdsa import (
+        SLHDSA_SHAKE_128f, SLHDSA_SHAKE_128s,
+        SLHDSA_SHAKE_192f, SLHDSA_SHAKE_192s,
+        SLHDSA_SHAKE_256f, SLHDSA_SHAKE_256s,
+        SLHDSA_SHA2_128f, SLHDSA_SHA2_128s,
+        SLHDSA_SHA2_192f, SLHDSA_SHA2_192s,
+        SLHDSA_SHA2_256f, SLHDSA_SHA2_256s,
+    )
 
-    # Map friendly names to parameter sets
+    # Map friendly names to DSA classes
     variant_map = {
-        "slh-shake-128f": "SLH-DSA-SHAKE-128f",
-        "slh-shake-128s": "SLH-DSA-SHAKE-128s",
-        "slh-shake-192f": "SLH-DSA-SHAKE-192f",
-        "slh-shake-192s": "SLH-DSA-SHAKE-192s",
-        "slh-shake-256f": "SLH-DSA-SHAKE-256f",
-        "slh-shake-256s": "SLH-DSA-SHAKE-256s",
-        "slh-sha2-128f": "SLH-DSA-SHA2-128f",
-        "slh-sha2-128s": "SLH-DSA-SHA2-128s",
-        "slh-sha2-192f": "SLH-DSA-SHA2-192f",
-        "slh-sha2-192s": "SLH-DSA-SHA2-192s",
-        "slh-sha2-256f": "SLH-DSA-SHA2-256f",
-        "slh-sha2-256s": "SLH-DSA-SHA2-256s",
+        "slh-shake-128f": (SLHDSA_SHAKE_128f, "SLH-DSA-SHAKE-128f"),
+        "slh-shake-128s": (SLHDSA_SHAKE_128s, "SLH-DSA-SHAKE-128s"),
+        "slh-shake-192f": (SLHDSA_SHAKE_192f, "SLH-DSA-SHAKE-192f"),
+        "slh-shake-192s": (SLHDSA_SHAKE_192s, "SLH-DSA-SHAKE-192s"),
+        "slh-shake-256f": (SLHDSA_SHAKE_256f, "SLH-DSA-SHAKE-256f"),
+        "slh-shake-256s": (SLHDSA_SHAKE_256s, "SLH-DSA-SHAKE-256s"),
+        "slh-sha2-128f": (SLHDSA_SHA2_128f, "SLH-DSA-SHA2-128f"),
+        "slh-sha2-128s": (SLHDSA_SHA2_128s, "SLH-DSA-SHA2-128s"),
+        "slh-sha2-192f": (SLHDSA_SHA2_192f, "SLH-DSA-SHA2-192f"),
+        "slh-sha2-192s": (SLHDSA_SHA2_192s, "SLH-DSA-SHA2-192s"),
+        "slh-sha2-256f": (SLHDSA_SHA2_256f, "SLH-DSA-SHA2-256f"),
+        "slh-sha2-256s": (SLHDSA_SHA2_256s, "SLH-DSA-SHA2-256s"),
     }
 
     if variant not in variant_map:
@@ -200,12 +206,12 @@ def generate_slhdsa_keys(variant: str, output_prefix: str, cert_info: Certificat
         print(f"Available: {', '.join(variant_map.keys())}")
         sys.exit(1)
 
-    param_name = variant_map[variant]
-    params = PARAMETER_SETS[param_name]
+    dsa_class, param_name = variant_map[variant]
+    dsa = dsa_class()
 
     import time
     start = time.time()
-    secret_key, public_key = slh_keygen(params)
+    public_key, secret_key = dsa.keygen()
     elapsed = (time.time() - start) * 1000
 
     print(f"  Key generation completed in {elapsed:.0f} ms")
@@ -220,7 +226,7 @@ def generate_slhdsa_keys(variant: str, output_prefix: str, cert_info: Certificat
     sk_file = os.path.basename(sk_path)
 
     # Get signature size from parameters
-    sig_size = params.sig_size
+    sig_size = dsa.params.sig_size
 
     # Save keys
     with open(pk_path, "wb") as f:

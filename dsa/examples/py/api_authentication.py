@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Optional, Dict
 from datetime import datetime, timezone
 
-from dsa import MLDSA44
+from mldsa import MLDSA44
 
 
 @dataclass

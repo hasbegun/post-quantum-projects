@@ -12,7 +12,10 @@ from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from typing import Optional
 
-from dsa import slh_keygen, slh_sign, slh_verify, SLH_DSA_SHAKE_128f, SLH_DSA_SHAKE_256s
+from slhdsa import (
+    SLHDSA_SHAKE_128f, SLHDSA_SHAKE_256s,
+    SLH_DSA_SHAKE_128f, SLH_DSA_SHAKE_256s,
+)
 
 
 @dataclass
@@ -32,11 +35,18 @@ class SignedDocument:
 class DocumentSigner:
     """Post-Quantum Document Signing Service using SLH-DSA."""
 
+    # Map algorithm names to DSA classes for verification
+    ALGORITHM_MAP = {
+        "SLH-DSA-SHAKE-128f": SLHDSA_SHAKE_128f,
+        "SLH-DSA-SHAKE-256s": SLHDSA_SHAKE_256s,
+    }
+
     def __init__(self, signer_id: str, security_level: str = "standard"):
         self.signer_id = signer_id
-        self.params = SLH_DSA_SHAKE_256s if security_level == "high" else SLH_DSA_SHAKE_128f
-        self.algorithm = self.params.name
-        self._sk, self._pk = slh_keygen(self.params)
+        dsa_class = SLHDSA_SHAKE_256s if security_level == "high" else SLHDSA_SHAKE_128f
+        self._dsa = dsa_class()
+        self.algorithm = self._dsa.params.name
+        self._pk, self._sk = self._dsa.keygen()
 
     @property
     def public_key(self) -> bytes:
@@ -46,18 +56,18 @@ class DocumentSigner:
         doc_hash = hashlib.sha256(document).hexdigest()
         timestamp = datetime.now(timezone.utc).isoformat()
         context = f"{self.signer_id}:{timestamp}:{filename}".encode()[:255]
-        signature = slh_sign(self.params, document, self._sk, ctx=context)
+        signature = self._dsa.sign(self._sk, document, ctx=context)
         return SignedDocument(doc_hash, filename, self.signer_id, timestamp, signature.hex(), self.algorithm)
 
     @staticmethod
     def verify_document(document: bytes, signed_doc: SignedDocument, public_key: bytes) -> bool:
-        from dsa.slhdsa.parameters import PARAMETER_SETS
-        params = PARAMETER_SETS.get(signed_doc.algorithm)
-        if not params:
+        dsa_class = DocumentSigner.ALGORITHM_MAP.get(signed_doc.algorithm)
+        if not dsa_class:
             return False
+        dsa = dsa_class()
         context = f"{signed_doc.signer_id}:{signed_doc.timestamp}:{signed_doc.filename}".encode()[:255]
         signature = bytes.fromhex(signed_doc.signature)
-        return slh_verify(params, document, signature, public_key, ctx=context)
+        return dsa.verify(public_key, document, signature, ctx=context)
 
 
 def main():

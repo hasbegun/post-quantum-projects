@@ -7,11 +7,8 @@ Helps choose the right algorithm for your use case.
 """
 
 import time
-from dsa import (
-    MLDSA44, MLDSA65, MLDSA87,
-    slh_keygen, slh_sign, slh_verify,
-    SLH_DSA_SHAKE_128f, SLH_DSA_SHAKE_128s,
-)
+from mldsa import MLDSA44, MLDSA65, MLDSA87
+from slhdsa import SLHDSA_SHAKE_128f, SLHDSA_SHAKE_128s
 
 
 def benchmark_mldsa(name: str, dsa_class, iterations: int = 10):
@@ -50,28 +47,29 @@ def benchmark_mldsa(name: str, dsa_class, iterations: int = 10):
     }
 
 
-def benchmark_slhdsa(name: str, params, iterations: int = 5):
+def benchmark_slhdsa(name: str, dsa_class, iterations: int = 5):
     """Benchmark SLH-DSA operations."""
+    dsa = dsa_class()
     message = b"Benchmark message for post-quantum signatures"
 
     # Keygen
     start = time.time()
     for _ in range(iterations):
-        sk, pk = slh_keygen(params)
+        pk, sk = dsa.keygen()
     keygen_time = (time.time() - start) / iterations * 1000
 
     # Sign
-    sk, pk = slh_keygen(params)
+    pk, sk = dsa.keygen()
     start = time.time()
     for _ in range(iterations):
-        sig = slh_sign(params, message, sk)
+        sig = dsa.sign(sk, message)
     sign_time = (time.time() - start) / iterations * 1000
 
     # Verify
-    sig = slh_sign(params, message, sk)
+    sig = dsa.sign(sk, message)
     start = time.time()
     for _ in range(iterations):
-        slh_verify(params, message, sig, pk)
+        dsa.verify(pk, message, sig)
     verify_time = (time.time() - start) / iterations * 1000
 
     return {
@@ -109,11 +107,11 @@ def main():
 
     # SLH-DSA benchmarks
     print("  SLH-DSA-SHAKE-128f...", end=" ", flush=True)
-    results.append(benchmark_slhdsa("SLH-DSA-128f", SLH_DSA_SHAKE_128f))
+    results.append(benchmark_slhdsa("SLH-DSA-128f", SLHDSA_SHAKE_128f))
     print("done")
 
     print("  SLH-DSA-SHAKE-128s...", end=" ", flush=True)
-    results.append(benchmark_slhdsa("SLH-DSA-128s", SLH_DSA_SHAKE_128s, iterations=2))
+    results.append(benchmark_slhdsa("SLH-DSA-128s", SLHDSA_SHAKE_128s, iterations=2))
     print("done")
 
     # Print results table

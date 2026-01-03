@@ -21,9 +21,8 @@ from datetime import datetime
 # Add the src directory to the path
 sys.path.insert(0, '/app/src/py')
 
-from dsa import MLDSA44, MLDSA65, MLDSA87
-from dsa import slh_verify, SLH_DSA_SHAKE_128f
-from dsa.slhdsa.parameters import PARAMETER_SETS
+from mldsa import MLDSA44, MLDSA65, MLDSA87
+from slhdsa import SLHDSA_SHAKE_128f, SLHDSA_SHAKE_128s
 
 
 class VerificationServer:
@@ -35,34 +34,23 @@ class VerificationServer:
         self.algorithm = algorithm
         self.public_key = None
         self.dsa = None
-        self.params = None
         self.running = False
 
         self._setup_algorithm()
 
     def _setup_algorithm(self):
         """Initialize the DSA algorithm."""
-        if self.algorithm.startswith("mldsa"):
-            algorithms = {
-                "mldsa44": MLDSA44,
-                "mldsa65": MLDSA65,
-                "mldsa87": MLDSA87,
-            }
-            if self.algorithm in algorithms:
-                self.dsa = algorithms[self.algorithm]()
-            else:
-                raise ValueError(f"Unknown ML-DSA algorithm: {self.algorithm}")
-        elif self.algorithm.startswith("slh-"):
-            # Map to parameter set name
-            param_map = {
-                "slh-shake-128f": "SLH-DSA-SHAKE-128f",
-                "slh-shake-128s": "SLH-DSA-SHAKE-128s",
-            }
-            param_name = param_map.get(self.algorithm)
-            if param_name and param_name in PARAMETER_SETS:
-                self.params = PARAMETER_SETS[param_name]
-            else:
-                raise ValueError(f"Unknown SLH-DSA algorithm: {self.algorithm}")
+        algorithms = {
+            "mldsa44": MLDSA44,
+            "mldsa65": MLDSA65,
+            "mldsa87": MLDSA87,
+            "slh-shake-128f": SLHDSA_SHAKE_128f,
+            "slh-shake-128s": SLHDSA_SHAKE_128s,
+        }
+        if self.algorithm in algorithms:
+            self.dsa = algorithms[self.algorithm]()
+        else:
+            raise ValueError(f"Unknown algorithm: {self.algorithm}")
 
     def load_public_key(self, key_path: str):
         """Load public key from file."""
@@ -73,12 +61,7 @@ class VerificationServer:
     def verify_signature(self, message: bytes, signature: bytes) -> bool:
         """Verify a signature."""
         try:
-            if self.dsa:
-                # ML-DSA
-                return self.dsa.verify(self.public_key, message, signature)
-            elif self.params:
-                # SLH-DSA
-                return slh_verify(self.params, message, signature, self.public_key)
+            return self.dsa.verify(self.public_key, message, signature)
         except Exception as e:
             print(f"[{self.name}] Verification error: {e}")
             return False

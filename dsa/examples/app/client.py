@@ -20,9 +20,8 @@ from datetime import datetime
 # Add the src directory to the path
 sys.path.insert(0, '/app/src/py')
 
-from dsa import MLDSA44, MLDSA65, MLDSA87
-from dsa import slh_keygen, slh_sign, SLH_DSA_SHAKE_128f
-from dsa.slhdsa.parameters import PARAMETER_SETS
+from mldsa import MLDSA44, MLDSA65, MLDSA87
+from slhdsa import SLHDSA_SHAKE_128f, SLHDSA_SHAKE_128s
 
 
 class SigningClient:
@@ -33,44 +32,29 @@ class SigningClient:
         self.public_key = None
         self.secret_key = None
         self.dsa = None
-        self.params = None
 
         self._setup_algorithm()
 
     def _setup_algorithm(self):
         """Initialize the DSA algorithm."""
-        if self.algorithm.startswith("mldsa"):
-            algorithms = {
-                "mldsa44": MLDSA44,
-                "mldsa65": MLDSA65,
-                "mldsa87": MLDSA87,
-            }
-            if self.algorithm in algorithms:
-                self.dsa = algorithms[self.algorithm]()
-            else:
-                raise ValueError(f"Unknown ML-DSA algorithm: {self.algorithm}")
-        elif self.algorithm.startswith("slh-"):
-            param_map = {
-                "slh-shake-128f": "SLH-DSA-SHAKE-128f",
-                "slh-shake-128s": "SLH-DSA-SHAKE-128s",
-            }
-            param_name = param_map.get(self.algorithm)
-            if param_name and param_name in PARAMETER_SETS:
-                self.params = PARAMETER_SETS[param_name]
-            else:
-                raise ValueError(f"Unknown SLH-DSA algorithm: {self.algorithm}")
+        algorithms = {
+            "mldsa44": MLDSA44,
+            "mldsa65": MLDSA65,
+            "mldsa87": MLDSA87,
+            "slh-shake-128f": SLHDSA_SHAKE_128f,
+            "slh-shake-128s": SLHDSA_SHAKE_128s,
+        }
+        if self.algorithm in algorithms:
+            self.dsa = algorithms[self.algorithm]()
+        else:
+            raise ValueError(f"Unknown algorithm: {self.algorithm}")
 
     def generate_keys(self):
         """Generate a new key pair."""
         print(f"[Client] Generating {self.algorithm.upper()} key pair...")
         start = time.time()
 
-        if self.dsa:
-            # ML-DSA
-            self.public_key, self.secret_key = self.dsa.keygen()
-        elif self.params:
-            # SLH-DSA
-            self.secret_key, self.public_key = slh_keygen(self.params)
+        self.public_key, self.secret_key = self.dsa.keygen()
 
         elapsed = time.time() - start
         print(f"[Client] Key generation completed in {elapsed*1000:.0f} ms")
@@ -87,12 +71,7 @@ class SigningClient:
 
     def sign_message(self, message: bytes) -> bytes:
         """Sign a message."""
-        if self.dsa:
-            # ML-DSA
-            return self.dsa.sign(self.secret_key, message)
-        elif self.params:
-            # SLH-DSA
-            return slh_sign(self.params, message, self.secret_key)
+        return self.dsa.sign(self.secret_key, message)
 
     def send_to_server(self, host: str, port: int, request: dict) -> dict:
         """Send a request to a server."""

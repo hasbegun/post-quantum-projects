@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-Get started with post-quantum digital signatures in 5 minutes.
+Get started with post-quantum cryptography in 5 minutes.
 
 ## ML-DSA (Recommended)
 
@@ -43,6 +43,43 @@ signature = dsa.sign(secret_key, message)
 is_valid = dsa.verify(public_key, message, signature)
 ```
 
+## ML-KEM (Key Exchange)
+
+ML-KEM provides quantum-resistant key encapsulation for establishing shared secrets.
+
+```python
+from mlkem import MLKEM768
+
+# Create a KEM instance
+kem = MLKEM768()
+
+# Alice generates key pair
+encapsulation_key, decapsulation_key = kem.keygen()
+
+# Bob encapsulates a shared secret using Alice's public key
+shared_secret_bob, ciphertext = kem.encaps(encapsulation_key)
+
+# Alice decapsulates to get the same shared secret
+shared_secret_alice = kem.decaps(decapsulation_key, ciphertext)
+
+# Both now share a 32-byte secret for symmetric encryption (AES-GCM, etc.)
+print(f"Secrets match: {shared_secret_bob == shared_secret_alice}")  # True
+print(f"Shared secret: {shared_secret_alice.hex()}")
+```
+
+### Implicit Rejection
+
+If the ciphertext is tampered with, `decaps` returns a pseudorandom value instead of failing. This prevents timing attacks:
+
+```python
+# Tampered ciphertext
+tampered = bytes([ciphertext[0] ^ 0xFF]) + ciphertext[1:]
+fake_secret = kem.decaps(decapsulation_key, tampered)
+
+# fake_secret is pseudorandom, not an error
+assert fake_secret != shared_secret_alice
+```
+
 ## Choosing a Variant
 
 ### ML-DSA Variants
@@ -61,6 +98,14 @@ is_valid = dsa.verify(public_key, message, signature)
 | `*_128s` | Small signatures, slower signing |
 | `*_192*` | Higher security level |
 | `*_256*` | Highest security level |
+
+### ML-KEM Variants
+
+| Variant | Security | Use Case |
+|---------|----------|----------|
+| `MLKEM512` | 128-bit | IoT, embedded systems |
+| `MLKEM768` | 192-bit | Recommended default |
+| `MLKEM1024` | 256-bit | High security |
 
 ## Context Strings
 
@@ -92,16 +137,56 @@ assert sig1 == sig2  # Same!
 
 ## Key Sizes
 
+### ML-DSA
 ```python
-from mldsa import MLDSA65, MLDSA65_PARAMS
+from dsa import MLDSA65
 
-print(f"Public key: {MLDSA65_PARAMS.pk_size} bytes")   # 1952
-print(f"Secret key: {MLDSA65_PARAMS.sk_size} bytes")   # 4032
-print(f"Signature: {MLDSA65_PARAMS.sig_size} bytes")   # 3309
+dsa = MLDSA65()
+print(f"Public key: {dsa.params.pk_size} bytes")   # 1952
+print(f"Secret key: {dsa.params.sk_size} bytes")   # 4032
+print(f"Signature: {dsa.params.sig_size} bytes")   # 3309
+```
+
+### ML-KEM
+```python
+from mlkem import MLKEM768
+
+kem = MLKEM768()
+print(f"Encapsulation key: {kem.params.ek_size} bytes")  # 1184
+print(f"Decapsulation key: {kem.params.dk_size} bytes")  # 2400
+print(f"Ciphertext: {kem.params.ct_size} bytes")         # 1088
+print(f"Shared secret: 32 bytes")                         # Always 32
+```
+
+## Using ML-KEM with ML-DSA Together
+
+For authenticated key exchange (like TLS), combine ML-KEM for confidentiality with ML-DSA for authentication:
+
+```python
+from mlkem import MLKEM768
+from dsa import MLDSA65
+
+# Alice: Generate both signing and KEM keys
+dsa = MLDSA65()
+sign_pk, sign_sk = dsa.keygen()
+
+kem = MLKEM768()
+ek, dk = kem.keygen()
+
+# Bob: Encapsulate and sign the ciphertext
+shared_secret_bob, ciphertext = kem.encaps(ek)
+signature = dsa.sign(sign_sk, ciphertext)
+
+# Alice: Verify signature first, then decapsulate
+if dsa.verify(sign_pk, ciphertext, signature):
+    shared_secret_alice = kem.decaps(dk, ciphertext)
+    # Use shared_secret for AES-GCM encryption
+    print("Authenticated key exchange successful!")
 ```
 
 ## Next Steps
 
 - [ML-DSA API Reference](../api/mldsa.md)
 - [SLH-DSA API Reference](../api/slhdsa.md)
+- [ML-KEM API Reference](../api/mlkem.md)
 - [Security Considerations](security.md)

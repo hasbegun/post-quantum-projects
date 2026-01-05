@@ -1,6 +1,10 @@
-# Post-Quantum DSA User's Manual
+# Post-Quantum Cryptography User's Manual
 
-This manual covers installation, key generation, certificate creation, and integration of ML-DSA (FIPS 204) and SLH-DSA (FIPS 205) post-quantum digital signatures.
+This manual covers installation, key generation, certificate creation, and integration of post-quantum cryptographic algorithms:
+
+- **ML-DSA (FIPS 204)** - Digital signatures based on lattice cryptography
+- **SLH-DSA (FIPS 205)** - Digital signatures based on hash functions
+- **ML-KEM (FIPS 203)** - Key encapsulation for secure key exchange
 
 ## Table of Contents
 
@@ -10,16 +14,18 @@ This manual covers installation, key generation, certificate creation, and integ
 4. [Password Protection](#password-protection)
 5. [Signing Tool](#signing-tool)
 6. [Signing and Verification](#signing-and-verification)
-7. [Use Cases](#use-cases)
+7. [Key Exchange with ML-KEM](#key-exchange-with-ml-kem)
+8. [Use Cases](#use-cases)
    - [API Authentication](#api-authentication)
    - [Document Signing](#document-signing)
    - [Firmware Signing](#firmware-signing)
    - [Code Signing](#code-signing)
-8. [Web Server Integration](#web-server-integration)
+   - [Secure Key Exchange](#secure-key-exchange)
+9. [Web Server Integration](#web-server-integration)
    - [Nginx Integration](#nginx-integration)
    - [Caddy Integration](#caddy-integration)
-9. [Programming Examples](#programming-examples)
-10. [Security Considerations](#security-considerations)
+10. [Programming Examples](#programming-examples)
+11. [Security Considerations](#security-considerations)
 
 ---
 
@@ -113,8 +119,21 @@ Based on hash functions only. Larger signatures but relies on minimal cryptograp
 
 **Best for:** Long-term document signing, firmware signing, high-security archives
 
+### ML-KEM (Key Encapsulation)
+
+Based on lattice cryptography (same as ML-DSA). Used for establishing shared secrets.
+
+| Variant | Security Level | Encaps Key | Decaps Key | Ciphertext |
+|---------|---------------|------------|------------|------------|
+| ML-KEM-512 | 128-bit (Cat 1) | 800 bytes | 1,632 bytes | 768 bytes |
+| ML-KEM-768 | 192-bit (Cat 3) | 1,184 bytes | 2,400 bytes | 1,088 bytes |
+| ML-KEM-1024 | 256-bit (Cat 5) | 1,568 bytes | 3,168 bytes | 1,568 bytes |
+
+**Best for:** TLS key exchange, hybrid encryption, VPN tunnels, secure messaging
+
 ### Decision Guide
 
+**For Signatures:**
 ```
 Need fast signing? ────────────────────────────► ML-DSA
 Need smallest keys? ───────────────────────────► SLH-DSA
@@ -124,6 +143,18 @@ Real-time API authentication? ────────────────�
 Long-term document archival? ──────────────────► SLH-DSA-256s
 Firmware updates (size matters)? ──────────────► ML-DSA-44 or ML-DSA-65
 ```
+
+**For Key Exchange:**
+```
+General purpose TLS? ─────────────────────────► ML-KEM-768
+IoT/embedded devices? ────────────────────────► ML-KEM-512
+High-security communications? ────────────────► ML-KEM-1024
+```
+
+**Using Together:**
+- Use **ML-KEM** to establish a shared secret for symmetric encryption
+- Use **ML-DSA** to sign the ciphertext for authentication
+- This provides both confidentiality and authentication (like TLS)
 
 ---
 
@@ -226,6 +257,7 @@ The generated certificate JSON includes all metadata:
 ```cpp
 #include "mldsa/mldsa.hpp"
 #include "slhdsa/slh_dsa.hpp"
+#include "mlkem/mlkem.hpp"
 #include <fstream>
 
 // ML-DSA key generation
@@ -234,10 +266,10 @@ void generate_mldsa_keys() {
     auto [pk, sk] = dsa.keygen();
 
     // Save keys
-    std::ofstream pk_file("public.key", std::ios::binary);
+    std::ofstream pk_file("mldsa_public.key", std::ios::binary);
     pk_file.write(reinterpret_cast<char*>(pk.data()), pk.size());
 
-    std::ofstream sk_file("secret.key", std::ios::binary);
+    std::ofstream sk_file("mldsa_secret.key", std::ios::binary);
     sk_file.write(reinterpret_cast<char*>(sk.data()), sk.size());
 }
 
@@ -247,11 +279,24 @@ void generate_slhdsa_keys() {
     auto [sk, pk] = dsa.keygen();  // Note: returns (sk, pk)
 
     // Save keys
-    std::ofstream pk_file("public.key", std::ios::binary);
+    std::ofstream pk_file("slhdsa_public.key", std::ios::binary);
     pk_file.write(reinterpret_cast<char*>(pk.data()), pk.size());
 
-    std::ofstream sk_file("secret.key", std::ios::binary);
+    std::ofstream sk_file("slhdsa_secret.key", std::ios::binary);
     sk_file.write(reinterpret_cast<char*>(sk.data()), sk.size());
+}
+
+// ML-KEM key generation
+void generate_mlkem_keys() {
+    mlkem::MLKEM768 kem;
+    auto [ek, dk] = kem.keygen();  // ek = encapsulation key (public), dk = decapsulation key (secret)
+
+    // Save keys
+    std::ofstream ek_file("mlkem_encaps.key", std::ios::binary);
+    ek_file.write(reinterpret_cast<char*>(ek.data()), ek.size());
+
+    std::ofstream dk_file("mlkem_decaps.key", std::ios::binary);
+    dk_file.write(reinterpret_cast<char*>(dk.data()), dk.size());
 }
 ```
 
@@ -260,15 +305,16 @@ void generate_slhdsa_keys() {
 ```python
 from dsa import MLDSA44, MLDSA65, MLDSA87
 from dsa import slh_keygen, SLH_DSA_SHAKE_128f
+from mlkem import MLKEM512, MLKEM768, MLKEM1024
 
 # ML-DSA key generation
 def generate_mldsa_keys():
     dsa = MLDSA65()
     pk, sk = dsa.keygen()
 
-    with open("public.key", "wb") as f:
+    with open("mldsa_public.key", "wb") as f:
         f.write(pk)
-    with open("secret.key", "wb") as f:
+    with open("mldsa_secret.key", "wb") as f:
         f.write(sk)
 
     return pk, sk
@@ -277,12 +323,24 @@ def generate_mldsa_keys():
 def generate_slhdsa_keys():
     sk, pk = slh_keygen(SLH_DSA_SHAKE_128f)
 
-    with open("public.key", "wb") as f:
+    with open("slhdsa_public.key", "wb") as f:
         f.write(pk)
-    with open("secret.key", "wb") as f:
+    with open("slhdsa_secret.key", "wb") as f:
         f.write(sk)
 
     return pk, sk
+
+# ML-KEM key generation
+def generate_mlkem_keys():
+    kem = MLKEM768()
+    ek, dk = kem.keygen()  # ek = encapsulation key (public), dk = decapsulation key (secret)
+
+    with open("mlkem_encaps.key", "wb") as f:
+        f.write(ek)
+    with open("mlkem_decaps.key", "wb") as f:
+        f.write(dk)
+
+    return ek, dk
 ```
 
 ### Key Storage Best Practices
@@ -529,6 +587,160 @@ def sign_message(secret_key: bytes, message: bytes) -> bytes:
 def verify_signature(public_key: bytes, message: bytes, signature: bytes) -> bool:
     dsa = MLDSA65()
     return dsa.verify(public_key, message, signature)
+```
+
+---
+
+## Key Exchange with ML-KEM
+
+ML-KEM (Module-Lattice-Based Key Encapsulation Mechanism) provides quantum-resistant key exchange.
+
+### Basic Key Exchange (Python)
+
+```python
+from mlkem import MLKEM768
+
+# Create KEM instance
+kem = MLKEM768()
+
+# ALICE: Generate key pair and publish encapsulation key
+encapsulation_key, decapsulation_key = kem.keygen()
+# Send encapsulation_key to Bob (public)
+# Keep decapsulation_key secret
+
+# BOB: Encapsulate using Alice's public key
+shared_secret_bob, ciphertext = kem.encaps(encapsulation_key)
+# Send ciphertext to Alice
+# Use shared_secret_bob for symmetric encryption (AES-GCM)
+
+# ALICE: Decapsulate to get the same shared secret
+shared_secret_alice = kem.decaps(decapsulation_key, ciphertext)
+
+# Both parties now have the same 32-byte shared secret
+assert shared_secret_bob == shared_secret_alice
+```
+
+### Basic Key Exchange (C++)
+
+```cpp
+#include "mlkem/mlkem.hpp"
+
+void key_exchange_demo() {
+    mlkem::MLKEM768 kem;
+
+    // Alice generates key pair
+    auto [ek, dk] = kem.keygen();
+
+    // Bob encapsulates using Alice's public key
+    auto [shared_secret_bob, ciphertext] = kem.encaps(ek);
+
+    // Alice decapsulates
+    auto shared_secret_alice = kem.decaps(dk, ciphertext);
+
+    // Both have the same shared secret
+    assert(shared_secret_bob == shared_secret_alice);
+}
+```
+
+### Implicit Rejection
+
+ML-KEM implements **implicit rejection**: if the ciphertext is tampered with, `decaps` returns a pseudorandom value instead of failing. This prevents timing-based attacks.
+
+```python
+# Tampered ciphertext
+tampered = bytes([ciphertext[0] ^ 0xFF]) + ciphertext[1:]
+
+# Decapsulation returns pseudorandom value, not an error
+fake_secret = kem.decaps(decapsulation_key, tampered)
+
+# The fake secret is different from the real one
+assert fake_secret != shared_secret_alice
+```
+
+### Authenticated Key Exchange
+
+For authenticated key exchange (like TLS), combine ML-KEM with ML-DSA:
+
+```python
+from mlkem import MLKEM768
+from dsa import MLDSA65
+
+# SETUP: Alice generates both signing and KEM keys
+dsa = MLDSA65()
+sign_pk, sign_sk = dsa.keygen()
+
+kem = MLKEM768()
+ek, dk = kem.keygen()
+
+# Alice publishes: sign_pk (signing public key), ek (encapsulation key)
+
+# BOB: Encapsulate and sign the ciphertext for authentication
+shared_secret_bob, ciphertext = kem.encaps(ek)
+signature = dsa.sign(sign_sk, ciphertext)  # Sign with Alice's private signing key
+# Wait - Bob doesn't have Alice's private signing key!
+# In practice, Bob would sign with HIS private signing key:
+# signature = dsa.sign(bob_sign_sk, ciphertext)
+
+# Correct authenticated key exchange:
+# 1. Both parties have their own signing key pairs
+# 2. Bob encapsulates with Alice's KEM public key
+# 3. Bob signs the ciphertext with his own signing private key
+# 4. Alice verifies Bob's signature, then decapsulates
+```
+
+**Correct Authenticated Key Exchange:**
+
+```python
+from mlkem import MLKEM768
+from dsa import MLDSA65
+
+# SETUP
+dsa = MLDSA65()
+
+# Alice's keys
+alice_sign_pk, alice_sign_sk = dsa.keygen()
+kem = MLKEM768()
+alice_ek, alice_dk = kem.keygen()
+
+# Bob's keys
+bob_sign_pk, bob_sign_sk = dsa.keygen()
+
+# KEY EXCHANGE
+# Bob encapsulates using Alice's KEM public key
+shared_secret_bob, ciphertext = kem.encaps(alice_ek)
+
+# Bob signs the ciphertext with his signing key
+bob_signature = dsa.sign(bob_sign_sk, ciphertext)
+
+# Alice verifies Bob's signature, then decapsulates
+if dsa.verify(bob_sign_pk, ciphertext, bob_signature):
+    shared_secret_alice = kem.decaps(alice_dk, ciphertext)
+    print("Authenticated key exchange successful!")
+    # Use shared_secret for AES-256-GCM encryption
+```
+
+### ML-KEM Parameter Comparison
+
+| Parameter | ML-KEM-512 | ML-KEM-768 | ML-KEM-1024 |
+|-----------|------------|------------|-------------|
+| Security Level | Cat 1 (128-bit) | Cat 3 (192-bit) | Cat 5 (256-bit) |
+| Encapsulation Key | 800 bytes | 1,184 bytes | 1,568 bytes |
+| Decapsulation Key | 1,632 bytes | 2,400 bytes | 3,168 bytes |
+| Ciphertext | 768 bytes | 1,088 bytes | 1,568 bytes |
+| Shared Secret | 32 bytes | 32 bytes | 32 bytes |
+
+### Running ML-KEM Demo
+
+```bash
+# Python demo
+make demo-mlkem
+
+# C++ demo
+make mlkem-demo
+
+# Run ML-KEM tests
+make test-mlkem      # Python tests
+make test-mlkem-cpp  # C++ tests
 ```
 
 ---
@@ -1207,6 +1419,125 @@ class CodeSigner:
                 return False
 
         return True
+```
+
+### Secure Key Exchange
+
+Establish shared secrets for encrypted communication.
+
+```python
+# secure_channel.py
+from mlkem import MLKEM768
+from dsa import MLDSA65
+import os
+
+class SecureChannel:
+    """Authenticated key exchange using ML-KEM + ML-DSA."""
+
+    def __init__(self):
+        self.kem = MLKEM768()
+        self.dsa = MLDSA65()
+
+    def generate_identity(self) -> tuple:
+        """Generate identity (signing keys) and KEM keys."""
+        sign_pk, sign_sk = self.dsa.keygen()
+        kem_ek, kem_dk = self.kem.keygen()
+        return {
+            'sign_pk': sign_pk,
+            'sign_sk': sign_sk,
+            'kem_ek': kem_ek,
+            'kem_dk': kem_dk,
+        }
+
+    def initiate_exchange(self, peer_kem_ek: bytes, my_sign_sk: bytes) -> tuple:
+        """Initiate key exchange (client side)."""
+        # Encapsulate shared secret
+        shared_secret, ciphertext = self.kem.encaps(peer_kem_ek)
+
+        # Sign the ciphertext for authentication
+        signature = self.dsa.sign(my_sign_sk, ciphertext)
+
+        return shared_secret, ciphertext, signature
+
+    def complete_exchange(self, ciphertext: bytes, signature: bytes,
+                          peer_sign_pk: bytes, my_kem_dk: bytes) -> bytes:
+        """Complete key exchange (server side)."""
+        # Verify signature first
+        if not self.dsa.verify(peer_sign_pk, ciphertext, signature):
+            raise ValueError("Signature verification failed!")
+
+        # Decapsulate to get shared secret
+        shared_secret = self.kem.decaps(my_kem_dk, ciphertext)
+        return shared_secret
+
+
+# Usage example
+if __name__ == "__main__":
+    channel = SecureChannel()
+
+    # Alice and Bob generate their identities
+    alice = channel.generate_identity()
+    bob = channel.generate_identity()
+
+    # Exchange public keys (sign_pk, kem_ek) out of band
+    # Alice initiates key exchange to Bob
+    shared_alice, ciphertext, signature = channel.initiate_exchange(
+        bob['kem_ek'], alice['sign_sk']
+    )
+
+    # Bob completes the exchange
+    shared_bob = channel.complete_exchange(
+        ciphertext, signature, alice['sign_pk'], bob['kem_dk']
+    )
+
+    assert shared_alice == shared_bob
+    print(f"Shared secret established: {shared_alice.hex()[:32]}...")
+    # Use shared_secret with AES-256-GCM for symmetric encryption
+```
+
+**C++ Version:**
+
+```cpp
+#include "mlkem/mlkem.hpp"
+#include "mldsa/mldsa.hpp"
+#include <iostream>
+
+class SecureChannel {
+    mlkem::MLKEM768 kem;
+    mldsa::MLDSA65 dsa;
+
+public:
+    struct Identity {
+        std::vector<uint8_t> sign_pk, sign_sk;
+        std::vector<uint8_t> kem_ek, kem_dk;
+    };
+
+    Identity generate_identity() {
+        Identity id;
+        std::tie(id.sign_pk, id.sign_sk) = dsa.keygen();
+        std::tie(id.kem_ek, id.kem_dk) = kem.keygen();
+        return id;
+    }
+
+    std::tuple<std::vector<uint8_t>, std::vector<uint8_t>, std::vector<uint8_t>>
+    initiate_exchange(const std::vector<uint8_t>& peer_kem_ek,
+                      const std::vector<uint8_t>& my_sign_sk) {
+        auto [shared_secret, ciphertext] = kem.encaps(peer_kem_ek);
+        auto signature = dsa.sign(my_sign_sk, ciphertext);
+        return {shared_secret, ciphertext, signature};
+    }
+
+    std::vector<uint8_t>
+    complete_exchange(const std::vector<uint8_t>& ciphertext,
+                      const std::vector<uint8_t>& signature,
+                      const std::vector<uint8_t>& peer_sign_pk,
+                      const std::vector<uint8_t>& my_kem_dk) {
+        if (!dsa.verify(peer_sign_pk, ciphertext, signature)) {
+            throw std::runtime_error("Signature verification failed!");
+        }
+        return kem.decaps(my_kem_dk, ciphertext);
+    }
+};
 ```
 
 ---

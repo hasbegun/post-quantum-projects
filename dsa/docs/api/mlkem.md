@@ -189,6 +189,84 @@ assert shared_secret_alice == shared_secret_bob
 # Use shared_secret for symmetric encryption (e.g., AES-256-GCM)
 ```
 
+## C++ API
+
+### Header
+
+```cpp
+#include "mlkem/mlkem.hpp"
+```
+
+### Classes
+
+```cpp
+namespace mlkem {
+    class MLKEM512;   // Security Category 1
+    class MLKEM768;   // Security Category 3
+    class MLKEM1024;  // Security Category 5
+}
+```
+
+### Methods
+
+```cpp
+// Key generation
+std::pair<std::vector<uint8_t>, std::vector<uint8_t>> keygen();
+
+// Encapsulation
+std::pair<std::vector<uint8_t>, std::vector<uint8_t>> encaps(
+    const std::vector<uint8_t>& ek);
+
+// Decapsulation
+std::vector<uint8_t> decaps(
+    const std::vector<uint8_t>& dk,
+    const std::vector<uint8_t>& ciphertext);
+```
+
+### C++ Example
+
+```cpp
+#include "mlkem/mlkem.hpp"
+#include <iostream>
+#include <cassert>
+
+int main() {
+    mlkem::MLKEM768 kem;
+
+    // Alice generates key pair
+    auto [ek, dk] = kem.keygen();
+    std::cout << "Encapsulation key: " << ek.size() << " bytes\n";
+    std::cout << "Decapsulation key: " << dk.size() << " bytes\n";
+
+    // Bob encapsulates
+    auto [shared_secret_bob, ciphertext] = kem.encaps(ek);
+    std::cout << "Ciphertext: " << ciphertext.size() << " bytes\n";
+    std::cout << "Shared secret: " << shared_secret_bob.size() << " bytes\n";
+
+    // Alice decapsulates
+    auto shared_secret_alice = kem.decaps(dk, ciphertext);
+
+    // Verify
+    assert(shared_secret_bob == shared_secret_alice);
+    std::cout << "Key exchange successful!\n";
+
+    return 0;
+}
+```
+
+### Free Functions
+
+Alternatively, use the free functions with explicit parameters:
+
+```cpp
+#include "mlkem/mlkem.hpp"
+
+// Using free functions
+auto [ek, dk] = mlkem::mlkem_keygen(mlkem::MLKEM768_PARAMS);
+auto [ss, ct] = mlkem::mlkem_encaps(mlkem::MLKEM768_PARAMS, ek);
+auto ss2 = mlkem::mlkem_decaps(mlkem::MLKEM768_PARAMS, dk, ct);
+```
+
 ## Security Considerations
 
 1. **Key Management**: The decapsulation key (dk) must be kept secret. Only share the encapsulation key (ek).
@@ -198,3 +276,12 @@ assert shared_secret_alice == shared_secret_bob
 3. **Key Reuse**: Each key pair should ideally be used for a single key exchange session for forward secrecy.
 
 4. **Hybrid Usage**: Consider combining ML-KEM with classical key exchange (e.g., X25519) for defense in depth during the transition period.
+
+5. **Authentication**: ML-KEM provides confidentiality but not authentication. For authenticated key exchange, combine with ML-DSA signatures.
+
+## Related Documentation
+
+- [Quick Start Guide](../guide/quickstart.md)
+- [User Manual - Key Exchange Section](../MANUAL.md#key-exchange-with-ml-kem)
+- [ML-DSA API](mldsa.md) - For authenticated key exchange
+- [SLH-DSA API](slhdsa.md) - Alternative hash-based signatures

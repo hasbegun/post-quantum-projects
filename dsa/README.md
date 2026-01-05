@@ -1,11 +1,15 @@
-# Post-Quantum Digital Signature Algorithms (DSA)
+# Post-Quantum Cryptography Library
 
 ## What This Project Does
 
-This project provides implementations of two NIST-standardized post-quantum digital signature algorithms in both **Python** and **C++20**:
+This project provides implementations of NIST-standardized post-quantum cryptographic algorithms in both **Python** and **C++20**:
 
+**Digital Signature Algorithms:**
 - **ML-DSA (FIPS 204)** - Module-Lattice-Based Digital Signature Algorithm
 - **SLH-DSA (FIPS 205)** - Stateless Hash-Based Digital Signature Algorithm
+
+**Key Encapsulation Mechanism:**
+- **ML-KEM (FIPS 203)** - Module-Lattice-Based Key Encapsulation Mechanism
 
 ### What is a Digital Signature?
 
@@ -20,43 +24,69 @@ Signing:    Message + Secret Key  →  Signature
 Verifying:  Message + Signature + Public Key  →  Valid/Invalid
 ```
 
+### What is Key Encapsulation?
+
+Key Encapsulation Mechanism (KEM) securely establishes shared secrets between two parties:
+
+1. **Key Exchange** - Two parties agree on a shared secret without exchanging it directly
+2. **Confidentiality** - Only the intended recipient can derive the shared secret
+3. **Forward Secrecy** - Each session uses a fresh key pair
+
+```
+Encapsulation:   Public Key  →  (Ciphertext, Shared Secret)
+Decapsulation:   Secret Key + Ciphertext  →  Shared Secret
+```
+
+**Use with Signatures:** ML-KEM establishes shared secrets for encryption, while ML-DSA/SLH-DSA sign messages for authentication. Together they provide complete cryptographic protection.
+
 ### Why "Post-Quantum"?
 
 Current digital signatures (RSA, ECDSA) can be broken by quantum computers using Shor's algorithm. Post-quantum algorithms are designed to resist attacks from both classical and quantum computers.
 
-| Algorithm | Basis | Quantum-Safe |
-|-----------|-------|--------------|
-| RSA | Integer factorization | No |
-| ECDSA | Elliptic curves | No |
-| **ML-DSA** | Lattice problems | **Yes** |
-| **SLH-DSA** | Hash functions | **Yes** |
+| Algorithm | Type | Basis | Quantum-Safe |
+|-----------|------|-------|--------------|
+| RSA | Signature/KEM | Integer factorization | No |
+| ECDSA/ECDH | Signature/KEM | Elliptic curves | No |
+| **ML-DSA** | Signature | Lattice problems | **Yes** |
+| **SLH-DSA** | Signature | Hash functions | **Yes** |
+| **ML-KEM** | Key Encapsulation | Lattice problems | **Yes** |
 
 ---
 
 ## What This Project Demonstrates
 
-### 1. Two Different Security Approaches
+### 1. Three Complementary Algorithms
 
-**ML-DSA (Lattice-Based)**
+**ML-DSA (Lattice-Based Signatures)**
 - Security based on the hardness of lattice problems (Module-LWE)
 - Fast signing and verification
 - Smaller signatures (~2.4 KB)
 - Larger public keys (~1.3 KB)
 
-**SLH-DSA (Hash-Based)**
+**SLH-DSA (Hash-Based Signatures)**
 - Security based only on hash function properties
 - Slower but mathematically simpler
 - Larger signatures (~17 KB)
 - Tiny public keys (32 bytes)
 
+**ML-KEM (Lattice-Based Key Encapsulation)**
+- Secure key exchange using Module-LWE
+- Fast encapsulation and decapsulation
+- Compact ciphertexts (~768-1568 bytes)
+- Implicit rejection (returns pseudorandom value on decryption failure)
+
 ### 2. Complete NIST Standard Implementation
 
-This project implements the full FIPS 204 and FIPS 205 specifications:
+This project implements the full FIPS 203, FIPS 204 and FIPS 205 specifications:
 
-- All parameter sets (ML-DSA-44/65/87, SLH-DSA-128/192/256)
+- All parameter sets:
+  - ML-DSA-44/65/87 (signatures)
+  - SLH-DSA-128/192/256 with SHAKE and SHA2 variants (signatures)
+  - ML-KEM-512/768/1024 (key encapsulation)
 - Deterministic and randomized signing modes
 - Context strings for domain separation
 - Pre-hash mode for large messages
+- Implicit rejection for ML-KEM decapsulation
 
 ### 3. Dual Language Support
 
@@ -154,7 +184,65 @@ print(f"Signature valid: {valid}")
 make demo-document
 ```
 
-### Example 3: C++ Usage (SLH-DSA)
+### Example 3: Secure Key Exchange (ML-KEM)
+
+**Use Case**: Establish shared secrets for encrypted communication
+
+**Why ML-KEM?** Fast, compact, quantum-resistant key exchange for TLS and hybrid encryption
+
+```python
+from mlkem import MLKEM768
+
+# Alice generates key pair
+kem = MLKEM768()
+ek, dk = kem.keygen()  # ek = encapsulation key (public), dk = decapsulation key (secret)
+
+# Bob encapsulates a shared secret using Alice's public key
+shared_secret_bob, ciphertext = kem.encaps(ek)
+
+# Alice decapsulates to obtain the same shared secret
+shared_secret_alice = kem.decaps(dk, ciphertext)
+
+# Both now share the same 32-byte secret for symmetric encryption
+assert shared_secret_bob == shared_secret_alice
+print(f"Shared secret: {shared_secret_alice.hex()}")
+```
+
+**Implicit Rejection**: If an attacker tampers with the ciphertext, `decaps` returns a pseudorandom value (not an error), preventing timing attacks.
+
+**Run the full example:**
+```bash
+make demo-mlkem
+```
+
+### Example 4: Combined Key Exchange + Signing
+
+**Use Case**: Authenticated encrypted communication (like TLS)
+
+**Why Both?** ML-KEM provides confidentiality, ML-DSA provides authentication
+
+```python
+from mlkem import MLKEM768
+from dsa import MLDSA65
+
+# Alice: Generate signing and key exchange keys
+dsa = MLDSA65()
+sign_pk, sign_sk = dsa.keygen()
+
+kem = MLKEM768()
+ek, dk = kem.keygen()
+
+# Bob: Encapsulate and sign the ciphertext
+shared_secret_bob, ciphertext = kem.encaps(ek)
+signature = dsa.sign(sign_sk, ciphertext)
+
+# Alice: Verify signature, then decapsulate
+if dsa.verify(sign_pk, ciphertext, signature):
+    shared_secret_alice = kem.decaps(dk, ciphertext)
+    # Use shared_secret for AES-GCM encryption
+```
+
+### Example 5: C++ Usage (SLH-DSA)
 
 ```cpp
 #include "slhdsa/slh_dsa.hpp"
@@ -180,7 +268,35 @@ int main() {
 }
 ```
 
-### Example 4: Certificate Creation (C++)
+### Example 6: C++ Usage (ML-KEM)
+
+```cpp
+#include "mlkem/mlkem.hpp"
+
+using namespace mlkem;
+
+int main() {
+    // Use ML-KEM-768 (Category 3 security)
+    MLKEM768 kem;
+
+    // Alice generates key pair
+    auto [ek, dk] = kem.keygen();
+
+    // Bob encapsulates
+    auto [shared_secret_bob, ciphertext] = kem.encaps(ek);
+
+    // Alice decapsulates
+    auto shared_secret_alice = kem.decaps(dk, ciphertext);
+
+    // Verify shared secrets match
+    bool match = (shared_secret_bob == shared_secret_alice);
+    std::cout << "Shared secrets match: " << (match ? "YES" : "NO") << std::endl;
+
+    return 0;
+}
+```
+
+### Example 7: Certificate Creation (C++)
 
 Create and verify post-quantum certificates for TLS, code signing, and more.
 
@@ -262,7 +378,7 @@ docker run --rm dsa-cpp ./build/slhdsa_cert_example
 
 See [Certificate Guide](docs/CERTIFICATE_GUIDE.md) for complete documentation.
 
-### Example 5: Key Generation with Certificate Parameters
+### Example 8: Key Generation with Certificate Parameters
 
 Generate post-quantum key pairs with X.509-like certificate metadata, similar to OpenSSL.
 
@@ -470,7 +586,7 @@ make keygen-cpp ALG=mldsa65 OUT=mykey PASSWORD=mysecret
 make sign-cpp ALG=mldsa65 SK=./keys/mykey_secret.key MSG=document.txt PASSWORD=mysecret
 ```
 
-### Example 6: Multi-Container Demo App
+### Example 9: Multi-Container Demo App
 
 A complete client/server demo showing how post-quantum signatures work in distributed systems.
 
@@ -509,6 +625,8 @@ See [examples/app/README.md](examples/app/README.md) for details.
 
 ### When to Use Each Algorithm
 
+**For Signatures (ML-DSA vs SLH-DSA):**
+
 | Scenario | Recommended | Reason |
 |----------|-------------|--------|
 | API authentication | ML-DSA | Speed, small signatures |
@@ -517,6 +635,23 @@ See [examples/app/README.md](examples/app/README.md) for details.
 | Root CA certificates | SLH-DSA | Long-term security |
 | Legal documents | SLH-DSA | Conservative security |
 | Firmware signing | SLH-DSA | Decades of validity |
+
+**For Key Exchange (ML-KEM):**
+
+| Scenario | Parameter Set | Reason |
+|----------|---------------|--------|
+| TLS key exchange | ML-KEM-768 | Balance of security and performance |
+| Hybrid encryption | ML-KEM-512 | Combine with AES-GCM for data encryption |
+| High-security comms | ML-KEM-1024 | Maximum post-quantum security (Category 5) |
+| IoT/embedded devices | ML-KEM-512 | Smallest keys and ciphertext |
+
+**Combined Usage (Authenticated Key Exchange):**
+
+| Use Case | Combination |
+|----------|-------------|
+| TLS 1.3 handshake | ML-KEM-768 + ML-DSA-65 |
+| Secure messaging | ML-KEM-768 + ML-DSA-44 (or SLH-DSA for long-term) |
+| VPN tunnels | ML-KEM-1024 + ML-DSA-87 |
 
 ---
 
@@ -536,24 +671,25 @@ tests/test_mldsa.py::test_sign_verify_basic PASSED
 tests/test_slhdsa.py::test_keygen_produces_valid_keys PASSED
 tests/test_slhdsa.py::test_sign_verify_roundtrip PASSED
 ...
+tests/test_mlkem.py::test_encaps_decaps_roundtrip PASSED
+tests/test_mlkem.py::test_implicit_rejection PASSED
+...
 
-==================== 40 passed ====================
+==================== 60+ passed ====================
 ```
 
 ### Run Specific Tests
 
 ```bash
-# Python ML-DSA tests
-make test-mldsa
+# Python tests
+make test-mldsa         # ML-DSA Python tests
+make test-slhdsa        # SLH-DSA Python tests
+make test-mlkem         # ML-KEM Python tests
 
-# Python SLH-DSA tests
-make test-slhdsa
-
-# C++ ML-DSA tests
-make test-mldsa-cpp
-
-# C++ SLH-DSA tests
-make test-slhdsa-cpp
+# C++ tests
+make test-mldsa-cpp     # ML-DSA C++ tests
+make test-slhdsa-cpp    # SLH-DSA C++ tests
+make test-mlkem-cpp     # ML-KEM C++ tests
 ```
 
 ### Interactive Python Shell
@@ -565,10 +701,20 @@ make shell
 Then try:
 ```python
 >>> from dsa import MLDSA44, slh_keygen, SLH_DSA_SHAKE_128f
+>>> from mlkem import MLKEM768
+>>>
+>>> # Try ML-DSA
 >>> dsa = MLDSA44()
 >>> pk, sk = dsa.keygen()
 >>> len(pk)
 1312
+>>>
+>>> # Try ML-KEM
+>>> kem = MLKEM768()
+>>> ek, dk = kem.keygen()
+>>> shared_secret, ciphertext = kem.encaps(ek)
+>>> len(shared_secret)
+32
 ```
 
 ---
@@ -578,22 +724,31 @@ Then try:
 ```
 dsa/
 ├── src/
-│   ├── py/                      # Python package (dsa)
-│   │   ├── __init__.py          # Unified API exports
-│   │   ├── mldsa/               # ML-DSA implementation
-│   │   │   ├── mldsa.py         # Main MLDSA class
-│   │   │   ├── params.py        # Parameter sets (44, 65, 87)
-│   │   │   ├── ntt.py           # Number Theoretic Transform
-│   │   │   ├── encoding.py      # Bit packing/unpacking
-│   │   │   └── sampling.py      # Rejection sampling
-│   │   └── slhdsa/              # SLH-DSA implementation
-│   │       ├── slh_dsa.py       # Main sign/verify functions
-│   │       ├── parameters.py    # All 12 parameter sets
-│   │       ├── wots.py          # WOTS+ one-time signatures
-│   │       ├── xmss.py          # XMSS Merkle trees
-│   │       ├── fors.py          # FORS few-time signatures
-│   │       ├── hypertree.py     # Hypertree structure
-│   │       └── address.py       # ADRS address scheme
+│   ├── py/                      # Python packages
+│   │   ├── dsa/                 # Digital signature package
+│   │   │   ├── __init__.py      # Unified DSA API exports
+│   │   │   ├── mldsa/           # ML-DSA implementation
+│   │   │   │   ├── mldsa.py     # Main MLDSA class
+│   │   │   │   ├── params.py    # Parameter sets (44, 65, 87)
+│   │   │   │   ├── ntt.py       # Number Theoretic Transform
+│   │   │   │   ├── encoding.py  # Bit packing/unpacking
+│   │   │   │   └── sampling.py  # Rejection sampling
+│   │   │   └── slhdsa/          # SLH-DSA implementation
+│   │   │       ├── slh_dsa.py   # Main sign/verify functions
+│   │   │       ├── parameters.py# All 12 parameter sets
+│   │   │       ├── wots.py      # WOTS+ one-time signatures
+│   │   │       ├── xmss.py      # XMSS Merkle trees
+│   │   │       ├── fors.py      # FORS few-time signatures
+│   │   │       ├── hypertree.py # Hypertree structure
+│   │   │       └── address.py   # ADRS address scheme
+│   │   └── mlkem/               # ML-KEM package (FIPS 203)
+│   │       ├── __init__.py      # MLKEM512, MLKEM768, MLKEM1024
+│   │       ├── mlkem.py         # Main KEM class
+│   │       ├── params.py        # Parameter sets
+│   │       ├── ntt.py           # NTT for polynomial multiplication
+│   │       ├── encode.py        # Byte encoding/decoding
+│   │       ├── compress.py      # Compression/decompression
+│   │       └── sampling.py      # CBD and rejection sampling
 │   └── cpp/                     # C++ implementation
 │       ├── main.cpp             # Key generation tool (keygen)
 │       ├── mldsa/               # ML-DSA (FIPS 204)
@@ -603,32 +758,44 @@ dsa/
 │       │   ├── encoding.hpp     # Bit packing
 │       │   ├── sampling.hpp     # Rejection sampling
 │       │   └── utils.hpp/cpp    # Utilities
-│       └── slhdsa/              # SLH-DSA (FIPS 205)
-│           ├── slh_dsa.hpp      # Main API (keygen, sign, verify)
-│           ├── params.hpp       # All 12 parameter sets
-│           ├── address.hpp      # ADRS address scheme
-│           ├── hash_functions.hpp/cpp  # SHAKE256 and SHA2
-│           ├── wots.hpp         # WOTS+ signatures (constant-time)
-│           ├── xmss.hpp         # XMSS Merkle trees (constant-time)
-│           ├── fors.hpp         # FORS signatures (constant-time)
-│           ├── hypertree.hpp    # Hypertree structure (constant-time)
-│           ├── ct_utils.hpp     # Constant-time utilities
-│           └── utils.hpp/cpp    # General utilities
+│       ├── slhdsa/              # SLH-DSA (FIPS 205)
+│       │   ├── slh_dsa.hpp      # Main API (keygen, sign, verify)
+│       │   ├── params.hpp       # All 12 parameter sets
+│       │   ├── address.hpp      # ADRS address scheme
+│       │   ├── hash_functions.hpp/cpp  # SHAKE256 and SHA2
+│       │   ├── wots.hpp         # WOTS+ signatures (constant-time)
+│       │   ├── xmss.hpp         # XMSS Merkle trees (constant-time)
+│       │   ├── fors.hpp         # FORS signatures (constant-time)
+│       │   ├── hypertree.hpp    # Hypertree structure (constant-time)
+│       │   ├── ct_utils.hpp     # Constant-time utilities
+│       │   └── utils.hpp/cpp    # General utilities
+│       └── mlkem/               # ML-KEM (FIPS 203)
+│           ├── mlkem.hpp        # Main API (keygen, encaps, decaps)
+│           ├── params.hpp       # Parameter sets (512, 768, 1024)
+│           ├── ntt.hpp          # NTT for polynomial multiplication
+│           ├── encode.hpp       # Byte encoding/decoding
+│           ├── compress.hpp     # Compression/decompression
+│           ├── sampling.hpp     # CBD and rejection sampling
+│           └── kpke.hpp         # Internal K-PKE encryption
 ├── tests/
 │   ├── py/                      # Python tests
-│   │   ├── test_mldsa.py        # 18 ML-DSA tests
-│   │   └── test_slhdsa.py       # 22 SLH-DSA tests
+│   │   ├── test_mldsa.py        # ML-DSA tests
+│   │   ├── test_slhdsa.py       # SLH-DSA tests
+│   │   └── test_mlkem.py        # ML-KEM tests
 │   └── cpp/                     # C++ tests
 │       ├── test_mldsa.cpp       # ML-DSA test suite
-│       └── test_slhdsa.cpp      # SLH-DSA test suite
+│       ├── test_slhdsa.cpp      # SLH-DSA test suite
+│       └── test_mlkem.cpp       # ML-KEM test suite
 ├── examples/
 │   ├── py/                      # Python examples
 │   │   ├── api_authentication.py
 │   │   ├── document_signing.py
+│   │   ├── key_exchange.py      # ML-KEM key exchange demo
 │   │   ├── comparison.py
 │   │   └── generate_keys.py     # Key generation tool
 │   ├── cpp/                     # C++ examples
 │   │   ├── demo.cpp             # ML-DSA & SLH-DSA demo
+│   │   ├── mlkem_demo.cpp       # ML-KEM demo
 │   │   ├── mldsa_certificate.cpp
 │   │   └── slhdsa_certificate.cpp
 │   └── app/                     # Multi-container demo app
@@ -707,6 +874,49 @@ auto sig = slh_sign(SLH_DSA_SHAKE_128f, message, sk);
 bool valid = slh_verify(SLH_DSA_SHAKE_128f, message, sig, pk);
 ```
 
+### ML-KEM API (Python)
+
+```python
+from mlkem import MLKEM512, MLKEM768, MLKEM1024
+
+kem = MLKEM768()  # or MLKEM512(), MLKEM1024()
+
+# Key generation
+ek, dk = kem.keygen()              # Random keys
+ek, dk = kem.keygen(d=bytes(32), z=bytes(32))  # Deterministic
+
+# Encapsulation (Bob)
+shared_secret, ciphertext = kem.encaps(ek)
+shared_secret, ciphertext = kem.encaps(ek, m=bytes(32))  # Deterministic
+
+# Decapsulation (Alice)
+shared_secret = kem.decaps(dk, ciphertext)
+
+# Parameter info
+print(kem.params.name)       # "ML-KEM-768"
+print(kem.params.ek_size)    # 1184 (encapsulation key size)
+print(kem.params.dk_size)    # 2400 (decapsulation key size)
+print(kem.params.ct_size)    # 1088 (ciphertext size)
+```
+
+### ML-KEM API (C++)
+
+```cpp
+#include "mlkem/mlkem.hpp"
+using namespace mlkem;
+
+// Using convenience class
+MLKEM768 kem;  // or MLKEM512, MLKEM1024
+auto [ek, dk] = kem.keygen();
+auto [shared_secret, ciphertext] = kem.encaps(ek);
+auto decapsulated_secret = kem.decaps(dk, ciphertext);
+
+// Or using free functions with params
+auto [ek, dk] = mlkem_keygen(MLKEM768_PARAMS);
+auto [ss, ct] = mlkem_encaps(MLKEM768_PARAMS, ek);
+auto ss2 = mlkem_decaps(MLKEM768_PARAMS, dk, ct);
+```
+
 ---
 
 ## Make Commands
@@ -724,16 +934,20 @@ bool valid = slh_verify(SLH_DSA_SHAKE_128f, message, sig, pk);
 | `make test-cpp` | Run all C++ tests |
 | `make test-mldsa` | Run ML-DSA Python tests |
 | `make test-slhdsa` | Run SLH-DSA Python tests |
+| `make test-mlkem` | Run ML-KEM Python tests |
 | `make test-mldsa-cpp` | Run ML-DSA C++ tests |
 | `make test-slhdsa-cpp` | Run SLH-DSA C++ tests |
+| `make test-mlkem-cpp` | Run ML-KEM C++ tests |
 | `make test-kat` | Run NIST KAT tests (C++) |
 | `make test-kat-mldsa` | Run ML-DSA NIST KAT tests |
 | `make test-kat-slhdsa` | Run SLH-DSA NIST KAT tests |
 | **Demo** | |
 | `make demo-api` | API authentication example (Python) |
 | `make demo-document` | Document signing example (Python) |
+| `make demo-mlkem` | ML-KEM key exchange example (Python) |
 | `make demo-compare` | Algorithm comparison (Python) |
 | `make demo-cpp` | ML-DSA + SLH-DSA demo (C++) |
+| `make mlkem-demo` | ML-KEM demo (C++) |
 | `make demo-app [ALG=<alg>]` | Multi-container client/server demo |
 | `make cert-mldsa` | ML-DSA certificate example (C++) |
 | `make cert-slhdsa` | SLH-DSA certificate example (C++) |
@@ -821,6 +1035,7 @@ For production use:
 
 ## References
 
+- [NIST FIPS 203 - ML-KEM Standard](https://csrc.nist.gov/publications/detail/fips/203/final)
 - [NIST FIPS 204 - ML-DSA Standard](https://csrc.nist.gov/publications/detail/fips/204/final)
 - [NIST FIPS 205 - SLH-DSA Standard](https://csrc.nist.gov/publications/detail/fips/205/final)
 - [NIST Post-Quantum Cryptography Project](https://csrc.nist.gov/projects/post-quantum-cryptography)

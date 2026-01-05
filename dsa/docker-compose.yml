@@ -59,3 +59,25 @@ services:
       dockerfile: Dockerfile.cpp
     container_name: dsa-test-slhdsa-cpp
     command: ./build/test_slhdsa
+
+  # ML-KEM services
+  test-mlkem:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dsa-test-mlkem
+    command: python -m pytest tests/py/test_mlkem.py -v
+
+  test-mlkem-cpp:
+    build:
+      context: .
+      dockerfile: Dockerfile.cpp
+    container_name: dsa-test-mlkem-cpp
+    command: ./build/test_mlkem
+
+  mlkem-demo:
+    build:
+      context: .
+      dockerfile: Dockerfile.cpp
+    container_name: dsa-mlkem-demo
+    command: ./build/mlkem_demo

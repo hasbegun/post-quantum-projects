@@ -5,7 +5,7 @@ build-backend = "scikit_build_core.build"
 [project]
 name = "pqc-dsa"
 version = "1.0.0"
-description = "Post-Quantum Digital Signature Algorithms - ML-DSA (FIPS 204) & SLH-DSA (FIPS 205)"
+description = "Post-Quantum Cryptography - ML-DSA (FIPS 204), SLH-DSA (FIPS 205) & ML-KEM (FIPS 203)"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
@@ -16,12 +16,16 @@ keywords = [
     "cryptography",
     "post-quantum",
     "digital-signature",
+    "key-encapsulation",
     "ml-dsa",
     "slh-dsa",
+    "ml-kem",
+    "fips-203",
     "fips-204",
     "fips-205",
     "dilithium",
     "sphincs",
+    "kyber",
     "pybind11"
 ]
 classifiers = [
@@ -53,7 +57,7 @@ Issues = "https://github.com/example/pqc-dsa/issues"
 [tool.scikit-build]
 cmake.build-type = "Release"
 cmake.args = ["-DBUILD_PYTHON_BINDINGS=ON", "-DBUILD_TESTING=OFF"]
-wheel.packages = ["src/py/mldsa", "src/py/slhdsa"]
+wheel.packages = ["src/py/mldsa", "src/py/slhdsa", "src/py/mlkem"]
 wheel.install-dir = "."
 sdist.include = [
     "src/cpp/**/*.hpp",

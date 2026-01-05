@@ -1,10 +1,12 @@
 .PHONY: build build-py build-cpp build-wheels \
         test test-py test-cpp test-native test-cross-validation test-benchmarks \
         test-mldsa test-slhdsa test-mldsa-cpp test-slhdsa-cpp \
+        test-mlkem test-mlkem-py test-mlkem-cpp \
         test-kat test-kat-mldsa test-kat-slhdsa \
         test-keygen test-keygen-py test-keygen-cpp \
         dev shell clean help \
         demo-api demo-document demo-compare demo-cpp demo-app demo-app-down \
+        demo-kem demo-kem-cpp \
         cert-mldsa cert-slhdsa \
         keygen keygen-cpp sign-cpp \
         keygen-mldsa44 keygen-mldsa65 keygen-mldsa87 keygen-slhdsa keygen-slhdsa-small \
@@ -18,8 +20,8 @@ IMAGE_NAME_WHEELS := dsa-wheels
 CONTAINER_NAME := dsa-dev
 
 help:
-	@echo "Post-Quantum DSA (FIPS 204 & 205) Makefile"
-	@echo "==========================================="
+	@echo "Post-Quantum Cryptography (FIPS 203, 204 & 205) Makefile"
+	@echo "========================================================"
 	@echo ""
 	@echo "Build:"
 	@echo "  make build          - Build all Docker images"
@@ -36,6 +38,9 @@ help:
 	@echo "  make test-benchmarks - Run performance benchmarks"
 	@echo "  make test-mldsa     - Run ML-DSA Python tests only"
 	@echo "  make test-slhdsa    - Run SLH-DSA Python tests only"
+	@echo "  make test-mlkem     - Run ML-KEM tests (Python + C++)"
+	@echo "  make test-mlkem-py  - Run ML-KEM Python tests only"
+	@echo "  make test-mlkem-cpp - Run ML-KEM C++ tests only"
 	@echo "  make test-mldsa-cpp - Run ML-DSA C++ tests only"
 	@echo "  make test-slhdsa-cpp - Run SLH-DSA C++ tests only"
 	@echo ""
@@ -58,6 +63,8 @@ help:
 	@echo "  make demo-document - Document signing (SLH-DSA Python)"
 	@echo "  make demo-compare  - Compare ML-DSA vs SLH-DSA (Python)"
 	@echo "  make demo-cpp      - Run C++ ML-DSA + SLH-DSA demo"
+	@echo "  make demo-kem      - ML-KEM key exchange demo (Python)"
+	@echo "  make demo-kem-cpp  - ML-KEM key exchange demo (C++)"
 	@echo "  make demo-app [ALG=<alg>]  - Multi-container client/server demo"
 	@echo "  make demo-app-down - Stop and remove demo app containers"
 	@echo ""
@@ -172,6 +179,15 @@ test-mldsa-cpp: build-cpp
 
 test-slhdsa-cpp: build-cpp
 	docker run --rm $(IMAGE_NAME_CPP) ./build/test_slhdsa
+
+# ML-KEM Tests
+test-mlkem: test-mlkem-py test-mlkem-cpp
+
+test-mlkem-py: build-py
+	docker run --rm $(IMAGE_NAME_PY) python -m pytest tests/py/test_mlkem.py -v
+
+test-mlkem-cpp: build-cpp
+	docker run --rm $(IMAGE_NAME_CPP) ./build/test_mlkem
 
 # Native binding tests
 test-native: build-py
@@ -375,6 +391,13 @@ demo-compare: build-py
 
 demo-cpp: build-cpp
 	docker run --rm $(IMAGE_NAME_CPP) ./build/dsa_demo
+
+# ML-KEM demos
+demo-kem: build-py
+	docker run --rm $(IMAGE_NAME_PY) python examples/py/key_exchange.py
+
+demo-kem-cpp: build-cpp
+	docker run --rm $(IMAGE_NAME_CPP) ./build/mlkem_demo
 
 # Certificate example targets (C++)
 cert-mldsa: build-cpp

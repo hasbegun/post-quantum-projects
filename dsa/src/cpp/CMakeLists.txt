@@ -47,6 +47,20 @@ target_link_libraries(slhdsa PUBLIC
     OpenSSL::Crypto
 )
 
+# ML-KEM library (FIPS 203)
+add_library(mlkem STATIC
+    mlkem/utils.cpp
+)
+
+target_include_directories(mlkem PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${OPENSSL_INCLUDE_DIR}
+)
+
+target_link_libraries(mlkem PUBLIC
+    OpenSSL::Crypto
+)
+
 # ML-DSA Test executable
 add_executable(test_mldsa
     ${CMAKE_CURRENT_SOURCE_DIR}/../../tests/cpp/test_mldsa.cpp
@@ -134,8 +148,34 @@ target_include_directories(slhdsa_cert_example PRIVATE
 )
 
 
+# ML-KEM Test executable
+add_executable(test_mlkem
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../tests/cpp/test_mlkem.cpp
+)
+
+target_link_libraries(test_mlkem PRIVATE
+    mlkem
+)
+
+target_include_directories(test_mlkem PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+# ML-KEM Demo executable
+add_executable(mlkem_demo
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../examples/cpp/mlkem_demo.cpp
+)
+
+target_link_libraries(mlkem_demo PRIVATE
+    mlkem
+)
+
+target_include_directories(mlkem_demo PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 # Install targets
-install(TARGETS mldsa slhdsa
+install(TARGETS mldsa slhdsa mlkem
     ARCHIVE DESTINATION lib
 )
 
@@ -146,6 +186,11 @@ install(DIRECTORY mldsa/
 
 install(DIRECTORY slhdsa/
     DESTINATION include/slhdsa
+    FILES_MATCHING PATTERN "*.hpp"
+)
+
+install(DIRECTORY mlkem/
+    DESTINATION include/mlkem
     FILES_MATCHING PATTERN "*.hpp"
 )
 
@@ -207,6 +252,7 @@ target_include_directories(demo_client PRIVATE
 enable_testing()
 add_test(NAME mldsa_tests COMMAND test_mldsa)
 add_test(NAME slhdsa_tests COMMAND test_slhdsa)
+add_test(NAME mlkem_tests COMMAND test_mlkem)
 add_test(NAME mldsa_kat_tests COMMAND test_mldsa_kat)
 add_test(NAME slhdsa_kat_tests COMMAND test_slhdsa_kat)
 

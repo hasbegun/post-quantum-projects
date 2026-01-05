@@ -64,6 +64,20 @@ target_link_libraries(slhdsa PUBLIC
     OpenSSL::Crypto
 )
 
+# ML-KEM library (FIPS 203)
+add_library(mlkem STATIC
+    src/cpp/mlkem/utils.cpp
+)
+
+target_include_directories(mlkem PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp
+    ${OPENSSL_INCLUDE_DIR}
+)
+
+target_link_libraries(mlkem PUBLIC
+    OpenSSL::Crypto
+)
+
 # ============================================================================
 # Python Bindings (optional)
 # ============================================================================
@@ -96,9 +110,19 @@ if(BUILD_PYTHON_BINDINGS)
         ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp
     )
 
+    # ML-KEM Python module
+    pybind11_add_module(_mlkem_native
+        src/cpp/bindings/mlkem_module.cpp
+    )
+    target_link_libraries(_mlkem_native PRIVATE mlkem)
+    target_include_directories(_mlkem_native PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp
+    )
+
     # Install Python modules to the correct location
     install(TARGETS _mldsa_native DESTINATION mldsa)
     install(TARGETS _slhdsa_native DESTINATION slhdsa)
+    install(TARGETS _mlkem_native DESTINATION mlkem)
 endif()
 
 # ============================================================================
@@ -137,6 +161,13 @@ add_executable(slhdsa_cert_example
 )
 target_link_libraries(slhdsa_cert_example PRIVATE slhdsa)
 target_include_directories(slhdsa_cert_example PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+
+# ML-KEM Demo
+add_executable(mlkem_demo
+    examples/cpp/mlkem_demo.cpp
+)
+target_link_libraries(mlkem_demo PRIVATE mlkem)
+target_include_directories(mlkem_demo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
 
 # Demo App Server
 add_executable(demo_server
@@ -183,6 +214,12 @@ if(BUILD_TESTING)
     target_include_directories(test_slhdsa_kat PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
     add_test(NAME slhdsa_kat_tests COMMAND test_slhdsa_kat)
 
+    # ML-KEM Tests
+    add_executable(test_mlkem tests/cpp/test_mlkem.cpp)
+    target_link_libraries(test_mlkem PRIVATE mlkem)
+    target_include_directories(test_mlkem PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+    add_test(NAME mlkem_tests COMMAND test_mlkem)
+
     # Keygen Certificate Tests
     add_executable(test_keygen tests/cpp/test_keygen.cpp)
     target_include_directories(test_keygen PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
@@ -193,7 +230,7 @@ endif()
 # Install
 # ============================================================================
 
-install(TARGETS mldsa slhdsa
+install(TARGETS mldsa slhdsa mlkem
     ARCHIVE DESTINATION lib
 )
 
@@ -204,5 +241,10 @@ install(DIRECTORY src/cpp/mldsa/
 
 install(DIRECTORY src/cpp/slhdsa/
     DESTINATION include/slhdsa
+    FILES_MATCHING PATTERN "*.hpp"
+)
+
+install(DIRECTORY src/cpp/mlkem/
+    DESTINATION include/mlkem
     FILES_MATCHING PATTERN "*.hpp"
 )

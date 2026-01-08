@@ -108,10 +108,17 @@ The C++ SLH-DSA implementation demonstrates constant-time programming techniques
 
 ### Prerequisites
 
+**Option A: Docker (Easiest)**
 - Docker installed and running
 - Make (optional, for convenience commands)
 
-### Run All Tests
+**Option B: Local Build**
+- CMake 3.20+
+- C++20 compiler (GCC 11+, Clang 14+, Apple Clang 14+)
+- OpenSSL 3.0+ development libraries
+- Make
+
+### Run All Tests (Docker)
 
 ```bash
 cd ~/dsa
@@ -125,6 +132,54 @@ make test-py
 # Run only C++ tests
 make test-cpp
 ```
+
+### Local Build (No Docker)
+
+Build and run C++ executables directly on your machine:
+
+```bash
+# Install dependencies (Ubuntu/Debian)
+sudo apt-get install build-essential cmake libssl-dev
+
+# Install dependencies (macOS with Homebrew)
+brew install cmake openssl@3
+
+# Install dependencies (Fedora/RHEL)
+sudo dnf install cmake gcc-c++ openssl-devel
+
+# Build
+make build-local
+
+# Run tests
+make test-local
+
+# Executables are in ./build/
+./build/keygen --help
+./build/mlkem_demo
+```
+
+**Build Options:**
+```bash
+# Debug build (with symbols, no optimization)
+make build-local BUILD_TYPE=Debug
+
+# Specify parallel jobs
+make build-local CMAKE_JOBS=4
+
+# Clean local build
+make clean-local
+```
+
+**Output executables in `./build/`:**
+| Executable | Description |
+|------------|-------------|
+| `keygen` | Key generation tool |
+| `sign` | Message signing tool |
+| `dsa_demo` | ML-DSA + SLH-DSA demo |
+| `mlkem_demo` | ML-KEM key exchange demo |
+| `test_mldsa` | ML-DSA test suite |
+| `test_slhdsa` | SLH-DSA test suite |
+| `test_mlkem` | ML-KEM test suite |
 
 ---
 
@@ -924,11 +979,16 @@ auto ss2 = mlkem_decaps(MLKEM768_PARAMS, dk, ct);
 | Command | Description |
 |---------|-------------|
 | `make help` | Show all available commands |
-| **Build** | |
+| **Build (Docker)** | |
 | `make build` | Build all Docker images |
 | `make build-py` | Build Python Docker image |
 | `make build-cpp` | Build C++ Docker image |
-| **Test** | |
+| **Build (Local)** | |
+| `make build-local` | Build C++ executables locally to `./build/` |
+| `make build-local BUILD_TYPE=Debug` | Build with debug symbols |
+| `make clean-local` | Remove local build directory |
+| `make clean-all` | Remove Docker images and local build |
+| **Test (Docker)** | |
 | `make test` | Run all tests (Python + C++) |
 | `make test-py` | Run all Python tests |
 | `make test-cpp` | Run all C++ tests |
@@ -941,6 +1001,8 @@ auto ss2 = mlkem_decaps(MLKEM768_PARAMS, dk, ct);
 | `make test-kat` | Run NIST KAT tests (C++) |
 | `make test-kat-mldsa` | Run ML-DSA NIST KAT tests |
 | `make test-kat-slhdsa` | Run SLH-DSA NIST KAT tests |
+| **Test (Local)** | |
+| `make test-local` | Build and run all C++ tests locally |
 | **Demo** | |
 | `make demo-api` | API authentication example (Python) |
 | `make demo-document` | Document signing example (Python) |

@@ -1,9 +1,10 @@
-.PHONY: build build-py build-cpp build-wheels \
+.PHONY: build build-py build-cpp build-wheels build-local clean-local clean-all \
         test test-py test-cpp test-native test-cross-validation test-benchmarks \
         test-mldsa test-slhdsa test-mldsa-cpp test-slhdsa-cpp \
         test-mlkem test-mlkem-py test-mlkem-cpp \
         test-kat test-kat-mldsa test-kat-slhdsa \
         test-keygen test-keygen-py test-keygen-cpp \
+        test-local \
         dev shell clean help \
         demo-api demo-document demo-compare demo-cpp demo-app demo-app-down \
         demo-kem demo-kem-cpp \
@@ -23,11 +24,16 @@ help:
 	@echo "Post-Quantum Cryptography (FIPS 203, 204 & 205) Makefile"
 	@echo "========================================================"
 	@echo ""
-	@echo "Build:"
+	@echo "Build (Docker):"
 	@echo "  make build          - Build all Docker images"
 	@echo "  make build-py       - Build Python image (with native C++ bindings)"
 	@echo "  make build-cpp      - Build C++ image"
 	@echo "  make build-wheels   - Build Python wheels for distribution"
+	@echo ""
+	@echo "Build (Local - requires CMake, C++20 compiler, OpenSSL):"
+	@echo "  make build-local    - Build C++ executables locally to ./build/"
+	@echo "  make clean-local    - Remove local build directory"
+	@echo "  make test-local     - Run tests using local build"
 	@echo ""
 	@echo "Test:"
 	@echo "  make test           - Run all tests (Python + C++)"
@@ -157,6 +163,43 @@ build-wheels:
 	docker run --rm -v $(PWD)/dist:/out $(IMAGE_NAME_WHEELS) sh -c "cp -r /app/dist/* /out/ 2>/dev/null || true"
 	@echo "Wheels built in ./dist/"
 	@ls -la dist/
+
+# Local build targets (no Docker required)
+# Requires: CMake 3.20+, C++20 compiler (GCC 11+/Clang 14+), OpenSSL 3.0+
+BUILD_DIR := build
+BUILD_TYPE ?= Release
+CMAKE_JOBS ?= $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+
+build-local:
+	@echo "Building C++ executables locally..."
+	@echo "  Build type: $(BUILD_TYPE)"
+	@echo "  Parallel jobs: $(CMAKE_JOBS)"
+	@mkdir -p $(BUILD_DIR)
+	cd $(BUILD_DIR) && cmake ../src/cpp -DCMAKE_BUILD_TYPE=$(BUILD_TYPE)
+	cd $(BUILD_DIR) && make -j$(CMAKE_JOBS)
+	@echo ""
+	@echo "Build complete! Executables in ./$(BUILD_DIR)/:"
+	@ls -la $(BUILD_DIR)/*.a $(BUILD_DIR)/keygen $(BUILD_DIR)/sign $(BUILD_DIR)/test_* $(BUILD_DIR)/*_demo $(BUILD_DIR)/*_example 2>/dev/null || true
+
+clean-local:
+	@echo "Removing local build directory..."
+	rm -rf $(BUILD_DIR)
+	@echo "Done."
+
+# Run tests using local build
+test-local: build-local
+	@echo "Running local tests..."
+	@echo ""
+	@echo "=== ML-DSA Tests ==="
+	./$(BUILD_DIR)/test_mldsa
+	@echo ""
+	@echo "=== SLH-DSA Tests ==="
+	./$(BUILD_DIR)/test_slhdsa
+	@echo ""
+	@echo "=== ML-KEM Tests ==="
+	./$(BUILD_DIR)/test_mlkem
+	@echo ""
+	@echo "All tests passed!"
 
 # Test targets
 test: test-py test-cpp
@@ -421,5 +464,9 @@ clean:
 	@docker rmi -f $(IMAGE_NAME_PY) 2>/dev/null || true
 	@docker rmi -f $(IMAGE_NAME_CPP) 2>/dev/null || true
 	@docker rmi -f $(IMAGE_NAME_WHEELS) 2>/dev/null || true
-	@rm -rf dist/ build/ *.egg-info/ 2>/dev/null || true
-	@echo "Cleaned up Docker resources and build artifacts"
+	@rm -rf dist/ *.egg-info/ 2>/dev/null || true
+	@echo "Cleaned up Docker resources"
+	@echo "Note: Local build directory (./build/) not removed. Use 'make clean-local' to remove it."
+
+clean-all: clean clean-local
+	@echo "All build artifacts removed."

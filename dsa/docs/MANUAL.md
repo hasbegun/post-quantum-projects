@@ -35,7 +35,11 @@ This manual covers installation, key generation, certificate creation, and integ
 
 **For C++ (recommended for production):**
 - CMake 3.20+
-- C++20 compatible compiler (GCC 11+, Clang 14+)
+- C++20 compatible compiler:
+  - GCC 11+
+  - Clang 14+
+  - Apple Clang 14+ (Xcode 14+)
+  - MSVC 19.29+ (Visual Studio 2019 16.10+)
 - OpenSSL 3.0+ development libraries
 
 **For Python:**
@@ -58,24 +62,93 @@ make build-py     # Build Python image only
 make test
 ```
 
-### Option 2: Build from Source (C++)
+### Option 2: Local Build (C++)
+
+Build C++ executables directly on your machine without Docker.
+
+**Install Dependencies:**
 
 ```bash
-# Install dependencies (Ubuntu/Debian)
+# Ubuntu/Debian
 sudo apt-get install build-essential cmake libssl-dev
 
-# Clone and build
+# macOS (Homebrew)
+brew install cmake openssl@3
+
+# Fedora/RHEL
+sudo dnf install cmake gcc-c++ openssl-devel
+
+# Arch Linux
+sudo pacman -S cmake openssl
+```
+
+**Build Using Make (Recommended):**
+
+```bash
+# Clone the repository
 git clone https://github.com/hasbegun/dsa.git
 cd dsa
 
-# Build
+# Build (Release mode, parallel compilation)
+make build-local
+
+# Run tests
+make test-local
+
+# Executables are in ./build/
+./build/keygen --help
+./build/mlkem_demo
+```
+
+**Build Options:**
+
+```bash
+# Debug build (with symbols, no optimization)
+make build-local BUILD_TYPE=Debug
+
+# Specify number of parallel jobs
+make build-local CMAKE_JOBS=4
+
+# Clean local build
+make clean-local
+
+# Clean everything (Docker + local)
+make clean-all
+```
+
+**Manual CMake Build:**
+
+```bash
+# Clone and build manually
+git clone https://github.com/hasbegun/dsa.git
+cd dsa
+
 mkdir build && cd build
 cmake ../src/cpp -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
 
-# Install (optional)
+# Install system-wide (optional)
 sudo make install
 ```
+
+**Output Executables (`./build/`):**
+
+| Executable | Description |
+|------------|-------------|
+| `keygen` | Key generation with certificate metadata |
+| `sign` | Message signing tool |
+| `dsa_demo` | ML-DSA + SLH-DSA demonstration |
+| `mlkem_demo` | ML-KEM key exchange demonstration |
+| `test_mldsa` | ML-DSA test suite |
+| `test_slhdsa` | SLH-DSA test suite |
+| `test_mlkem` | ML-KEM test suite |
+| `test_mldsa_kat` | ML-DSA NIST KAT tests |
+| `test_slhdsa_kat` | SLH-DSA NIST KAT tests |
+| `mldsa_cert_example` | ML-DSA certificate example |
+| `slhdsa_cert_example` | SLH-DSA certificate example |
+| `libmldsa.a` | ML-DSA static library |
+| `libslhdsa.a` | SLH-DSA static library |
+| `libmlkem.a` | ML-KEM static library |
 
 ### Option 3: Python Package
 

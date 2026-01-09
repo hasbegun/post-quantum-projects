@@ -53,10 +53,7 @@ public:
 
         // Validate secret key size
         if (sk_vec.size() != dsa_.params().sk_size()) {
-            throw std::invalid_argument(
-                "Invalid secret key size: expected " +
-                std::to_string(dsa_.params().sk_size()) +
-                " bytes, got " + std::to_string(sk_vec.size()));
+            throw std::invalid_argument("Invalid secret key format");
         }
 
         // Validate context size
@@ -89,18 +86,12 @@ public:
 
         // Validate public key size
         if (pk_vec.size() != dsa_.params().pk_size()) {
-            throw std::invalid_argument(
-                "Invalid public key size: expected " +
-                std::to_string(dsa_.params().pk_size()) +
-                " bytes, got " + std::to_string(pk_vec.size()));
+            throw std::invalid_argument("Invalid public key format");
         }
 
         // Validate signature size
         if (sig_vec.size() != dsa_.params().sig_size()) {
-            throw std::invalid_argument(
-                "Invalid signature size: expected " +
-                std::to_string(dsa_.params().sig_size()) +
-                " bytes, got " + std::to_string(sig_vec.size()));
+            throw std::invalid_argument("Invalid signature format");
         }
 
         // Validate context size

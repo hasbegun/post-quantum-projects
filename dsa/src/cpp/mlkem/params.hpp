@@ -160,7 +160,7 @@ inline constexpr int32_t QINV = 62209;  // q^(-1) mod 2^16
 }
 
 /**
- * Barrett reduction
+ * Barrett reduction for int16_t
  * Returns a mod q for |a| < 2^15 * q
  */
 [[nodiscard]] inline constexpr int16_t barrett_reduce(int16_t a) noexcept {
@@ -169,6 +169,25 @@ inline constexpr int32_t QINV = 62209;  // q^(-1) mod 2^16
     int32_t t = (static_cast<int32_t>(v) * a + (1 << 25)) >> 26;
     t = a - t * Q;
     return static_cast<int16_t>(t);
+}
+
+/**
+ * Barrett reduction for int32_t (constant-time)
+ * Returns a mod q for |a| < q^2 (suitable for products of two reduced values)
+ * Uses 64-bit arithmetic for full precision
+ */
+[[nodiscard]] inline constexpr int16_t barrett_reduce_32(int32_t a) noexcept {
+    // v = floor(2^36 / q) = 20642679 (shifted by 10 extra bits for precision)
+    constexpr int64_t v = 20642679;
+    // Compute floor(a * v / 2^36)
+    int64_t t = (static_cast<int64_t>(a) * v) >> 36;
+    // Compute a - q * t
+    int32_t r = a - static_cast<int32_t>(t) * Q;
+    // Result may still be >= q, so do one conditional subtraction
+    // This is constant-time using arithmetic shift
+    r -= Q;
+    r += (r >> 31) & Q;
+    return static_cast<int16_t>(r);
 }
 
 /**

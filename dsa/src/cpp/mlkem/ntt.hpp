@@ -16,14 +16,13 @@
 namespace mlkem {
 
 /**
- * Simple modular multiplication for NTT
+ * Constant-time modular multiplication for NTT
+ * Uses Barrett reduction to avoid timing-variable modulo operator
  */
 [[nodiscard]] inline int16_t fqmul(int16_t a, int16_t b) noexcept {
     int32_t t = static_cast<int32_t>(a) * b;
-    // Reduce to [0, q) first, then to signed range
-    t = t % Q;
-    if (t < 0) t += Q;
-    return static_cast<int16_t>(t);
+    // Use constant-time Barrett reduction for 32-bit values
+    return barrett_reduce_32(t);
 }
 
 /**

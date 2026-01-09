@@ -296,16 +296,17 @@ std::vector<uint8_t> SHA2HashFunctions::PRF(
 
     auto compressed = adrs.get_compressed_adrs();
 
-    // PRF always uses SHA-256 with padding: pk_seed || zeros(64-n) || ADRSc || sk_seed
+    // PRF uses SHA-256 for n=16, SHA-512 for n=24/32
+    // Padding: pk_seed || zeros(block_size-n) || ADRSc || sk_seed
     std::vector<uint8_t> data;
-    size_t padding_len = 64 - n_;
+    size_t padding_len = block_size_ - n_;
     data.reserve(pk_seed.size() + padding_len + 22 + sk_seed.size());
     data.insert(data.end(), pk_seed.begin(), pk_seed.end());
     data.resize(data.size() + padding_len, 0);  // Add padding
     data.insert(data.end(), compressed.begin(), compressed.end());
     data.insert(data.end(), sk_seed.begin(), sk_seed.end());
 
-    auto result = sha256(data);
+    auto result = hash(data);  // Use appropriate hash based on n
     result.resize(n_);
     return result;
 }
@@ -317,16 +318,17 @@ std::vector<uint8_t> SHA2HashFunctions::F(
 
     auto compressed = adrs.get_compressed_adrs();
 
-    // F always uses SHA-256 with padding: pk_seed || zeros(64-n) || ADRSc || M1
+    // F uses SHA-256 for n=16, SHA-512 for n=24/32
+    // Padding: pk_seed || zeros(block_size-n) || ADRSc || M1
     std::vector<uint8_t> data;
-    size_t padding_len = 64 - n_;
+    size_t padding_len = block_size_ - n_;
     data.reserve(pk_seed.size() + padding_len + 22 + M1.size());
     data.insert(data.end(), pk_seed.begin(), pk_seed.end());
     data.resize(data.size() + padding_len, 0);  // Add padding
     data.insert(data.end(), compressed.begin(), compressed.end());
     data.insert(data.end(), M1.begin(), M1.end());
 
-    auto result = sha256(data);
+    auto result = hash(data);  // Use appropriate hash based on n
     result.resize(n_);
     return result;
 }

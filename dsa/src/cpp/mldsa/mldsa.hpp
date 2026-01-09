@@ -17,6 +17,7 @@
 #include "ntt.hpp"
 #include "encoding.hpp"
 #include "sampling.hpp"
+#include "../ct_utils.hpp"
 #include <tuple>
 #include <stdexcept>
 #include <span>
@@ -501,13 +502,15 @@ private:
         // Step 10: Use hint to recover w1'
         auto w1_prime = vec_use_hint(h, w_prime_vec, gamma2);
 
-        // Step 11: Compute challenge and compare
+        // Step 11: Compute challenge and compare (constant-time)
         std::vector<uint8_t> mu_w1(mu.begin(), mu.end());
         auto w1_enc = w1_encode(w1_prime, params_);
         mu_w1.insert(mu_w1.end(), w1_enc.begin(), w1_enc.end());
         auto c_tilde_prime = h_function(mu_w1, params_.lambda / 4);
 
-        return c_tilde == c_tilde_prime;
+        // Use constant-time comparison for the final check
+        ct::barrier();
+        return ct::equal(c_tilde, c_tilde_prime);
     }
 };
 

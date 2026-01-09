@@ -47,10 +47,7 @@ public:
 
         // Validate encapsulation key size
         if (ek_vec.size() != kem_.params().ek_size()) {
-            throw std::invalid_argument(
-                "Invalid encapsulation key size: expected " +
-                std::to_string(kem_.params().ek_size()) +
-                " bytes, got " + std::to_string(ek_vec.size()));
+            throw std::invalid_argument("Invalid encapsulation key format");
         }
 
         auto [K, c] = kem_.encaps(ek_vec, rand_vec);
@@ -70,18 +67,12 @@ public:
 
         // Validate decapsulation key size
         if (dk_vec.size() != kem_.params().dk_size()) {
-            throw std::invalid_argument(
-                "Invalid decapsulation key size: expected " +
-                std::to_string(kem_.params().dk_size()) +
-                " bytes, got " + std::to_string(dk_vec.size()));
+            throw std::invalid_argument("Invalid decapsulation key format");
         }
 
         // Validate ciphertext size
         if (ct_vec.size() != kem_.params().ct_size()) {
-            throw std::invalid_argument(
-                "Invalid ciphertext size: expected " +
-                std::to_string(kem_.params().ct_size()) +
-                " bytes, got " + std::to_string(ct_vec.size()));
+            throw std::invalid_argument("Invalid ciphertext format");
         }
 
         auto K = kem_.decaps(dk_vec, ct_vec);

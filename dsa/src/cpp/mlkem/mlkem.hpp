@@ -17,10 +17,10 @@
 #include "params.hpp"
 #include "kpke.hpp"
 #include "utils.hpp"
+#include "../ct_utils.hpp"
 #include <tuple>
 #include <stdexcept>
 #include <span>
-#include <cstring>
 
 namespace mlkem {
 
@@ -197,19 +197,20 @@ private:
         // Step 4: Re-encrypt m' to get c'
         auto c_prime = kpke_encrypt(ek_pke, m_prime, r_prime, params_);
 
-        // Step 5: Check if c' == c (implicit rejection)
-        bool valid = (c.size() == c_prime.size()) &&
-                     (std::memcmp(c.data(), c_prime.data(), c.size()) == 0);
+        // Step 5: Compute both possible outputs (constant-time)
+        // K_bar = J(z || c) - implicit rejection value
+        std::vector<uint8_t> z_c(z.begin(), z.end());
+        z_c.insert(z_c.end(), c.begin(), c.end());
+        auto K_bar = J(z_c);
 
-        // Step 6: Return K' if valid, else return J(z || c)
-        if (valid) {
-            return K_prime;
-        } else {
-            // Implicit rejection: compute pseudorandom output
-            std::vector<uint8_t> z_c(z.begin(), z.end());
-            z_c.insert(z_c.end(), c.begin(), c.end());
-            return J(z_c);
-        }
+        // Step 6: Constant-time comparison and selection
+        // Use ct::equal for timing-safe comparison (no early exit)
+        bool valid = ct::equal(c, c_prime);
+
+        // Use ct::select_bytes to choose result without branching
+        // Returns K_prime if valid, K_bar otherwise
+        ct::barrier();
+        return ct::select_bytes(K_prime, K_bar, valid);
     }
 };
 

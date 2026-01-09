@@ -133,6 +133,13 @@ SHAKE128Stream& SHAKE128Stream::operator=(SHAKE128Stream&& other) noexcept {
 }
 
 std::vector<uint8_t> SHAKE128Stream::read(size_t n) {
+    // Reasonable maximum to prevent overflow and excessive allocation
+    constexpr size_t MAX_BUFFER_SIZE = 1ULL << 30;  // 1 GB
+
+    if (n > MAX_BUFFER_SIZE) {
+        throw std::runtime_error("SHAKE128 read request too large");
+    }
+
     std::vector<uint8_t> result(n);
     size_t written = 0;
 
@@ -145,7 +152,12 @@ std::vector<uint8_t> SHAKE128Stream::read(size_t n) {
     if (written < n) {
         if (!finalized_) {
             // Finalize and get a large chunk
-            size_t needed = n - written + 1024;  // Get extra for future reads
+            size_t remaining = n - written;
+            // Check for overflow before adding 1024
+            if (remaining > MAX_BUFFER_SIZE - 1024) {
+                throw std::runtime_error("SHAKE128 buffer size overflow");
+            }
+            size_t needed = remaining + 1024;  // Get extra for future reads
             buffer_.resize(needed);
             if (EVP_DigestFinalXOF(ctx_, buffer_.data(), needed) != 1) {
                 throw std::runtime_error("SHAKE128 finalization failed");
@@ -160,7 +172,12 @@ std::vector<uint8_t> SHAKE128Stream::read(size_t n) {
                 throw std::runtime_error("Failed to create EVP_MD_CTX");
             }
 
-            size_t total_needed = buffer_.size() + (n - written) + 1024;
+            size_t remaining = n - written;
+            // Check for overflow in total_needed calculation
+            if (buffer_.size() > MAX_BUFFER_SIZE - remaining - 1024) {
+                throw std::runtime_error("SHAKE128 buffer size overflow");
+            }
+            size_t total_needed = buffer_.size() + remaining + 1024;
             std::vector<uint8_t> new_buffer(total_needed);
 
             if (EVP_DigestInit_ex(ctx_, EVP_shake128(), nullptr) != 1 ||
@@ -230,6 +247,13 @@ SHAKE256Stream& SHAKE256Stream::operator=(SHAKE256Stream&& other) noexcept {
 }
 
 std::vector<uint8_t> SHAKE256Stream::read(size_t n) {
+    // Reasonable maximum to prevent overflow and excessive allocation
+    constexpr size_t MAX_BUFFER_SIZE = 1ULL << 30;  // 1 GB
+
+    if (n > MAX_BUFFER_SIZE) {
+        throw std::runtime_error("SHAKE256 read request too large");
+    }
+
     std::vector<uint8_t> result(n);
     size_t written = 0;
 
@@ -242,7 +266,12 @@ std::vector<uint8_t> SHAKE256Stream::read(size_t n) {
     if (written < n) {
         if (!finalized_) {
             // Finalize and get a large chunk
-            size_t needed = n - written + 1024;
+            size_t remaining = n - written;
+            // Check for overflow before adding 1024
+            if (remaining > MAX_BUFFER_SIZE - 1024) {
+                throw std::runtime_error("SHAKE256 buffer size overflow");
+            }
+            size_t needed = remaining + 1024;
             buffer_.resize(needed);
             if (EVP_DigestFinalXOF(ctx_, buffer_.data(), needed) != 1) {
                 throw std::runtime_error("SHAKE256 finalization failed");
@@ -257,7 +286,12 @@ std::vector<uint8_t> SHAKE256Stream::read(size_t n) {
                 throw std::runtime_error("Failed to create EVP_MD_CTX");
             }
 
-            size_t total_needed = buffer_.size() + (n - written) + 1024;
+            size_t remaining = n - written;
+            // Check for overflow in total_needed calculation
+            if (buffer_.size() > MAX_BUFFER_SIZE - remaining - 1024) {
+                throw std::runtime_error("SHAKE256 buffer size overflow");
+            }
+            size_t total_needed = buffer_.size() + remaining + 1024;
             std::vector<uint8_t> new_buffer(total_needed);
 
             if (EVP_DigestInit_ex(ctx_, EVP_shake256(), nullptr) != 1 ||

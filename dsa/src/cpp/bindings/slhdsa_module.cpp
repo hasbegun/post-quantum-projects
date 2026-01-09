@@ -117,10 +117,7 @@ public:
 
         // Validate secret key size
         if (sk_vec.size() != P.sk_size()) {
-            throw std::invalid_argument(
-                "Invalid secret key size: expected " +
-                std::to_string(P.sk_size()) +
-                " bytes, got " + std::to_string(sk_vec.size()));
+            throw std::invalid_argument("Invalid secret key format");
         }
 
         // Validate context size
@@ -153,18 +150,12 @@ public:
 
         // Validate public key size
         if (pk_vec.size() != P.pk_size()) {
-            throw std::invalid_argument(
-                "Invalid public key size: expected " +
-                std::to_string(P.pk_size()) +
-                " bytes, got " + std::to_string(pk_vec.size()));
+            throw std::invalid_argument("Invalid public key format");
         }
 
         // Validate signature size
         if (sig_vec.size() != P.sig_size()) {
-            throw std::invalid_argument(
-                "Invalid signature size: expected " +
-                std::to_string(P.sig_size()) +
-                " bytes, got " + std::to_string(sig_vec.size()));
+            throw std::invalid_argument("Invalid signature format");
         }
 
         // Validate context size

@@ -4,7 +4,9 @@
         test-mlkem test-mlkem-py test-mlkem-cpp \
         test-kat test-kat-mldsa test-kat-slhdsa \
         test-keygen test-keygen-py test-keygen-cpp \
-        test-local \
+        test-local test-constant-time \
+        fuzz fuzz-build fuzz-mldsa fuzz-slhdsa fuzz-mlkem \
+        fuzz-local fuzz-local-build fuzz-local-mldsa fuzz-local-slhdsa fuzz-local-mlkem \
         dev shell clean help \
         demo-api demo-document demo-compare demo-cpp demo-app demo-app-down \
         demo-kem demo-kem-cpp \
@@ -54,6 +56,20 @@ help:
 	@echo "  make test-kat         - Run all NIST KAT tests"
 	@echo "  make test-kat-mldsa   - Run ML-DSA NIST KAT tests"
 	@echo "  make test-kat-slhdsa  - Run SLH-DSA NIST KAT tests"
+	@echo ""
+	@echo "Security Tests:"
+	@echo "  make test-constant-time - Run constant-time verification (dudect)"
+	@echo ""
+	@echo "Fuzz Testing (Docker):"
+	@echo "  make fuzz               - Run all fuzzers in container (60s each)"
+	@echo "  make fuzz FUZZ_TIME=300 - Run with custom duration"
+	@echo "  make fuzz-mldsa         - Fuzz ML-DSA only"
+	@echo "  make fuzz-slhdsa        - Fuzz SLH-DSA only"
+	@echo "  make fuzz-mlkem         - Fuzz ML-KEM only"
+	@echo ""
+	@echo "Fuzz Testing (Local - requires LLVM: brew install llvm):"
+	@echo "  make fuzz-local         - Build and run all fuzz targets locally"
+	@echo "  make fuzz-local-build   - Build fuzz targets only"
 	@echo ""
 	@echo "Keygen Certificate Tests:"
 	@echo "  make test-keygen      - Run all keygen certificate tests"
@@ -182,9 +198,10 @@ build-local:
 	@ls -la $(BUILD_DIR)/*.a $(BUILD_DIR)/keygen $(BUILD_DIR)/sign $(BUILD_DIR)/test_* $(BUILD_DIR)/*_demo $(BUILD_DIR)/*_example 2>/dev/null || true
 
 clean-local:
-	@echo "Removing local build directory..."
-	rm -rf $(BUILD_DIR)
+	@echo "Removing local build directories..."
+	rm -rf $(BUILD_DIR) $(CT_BUILD_DIR) $(FUZZ_BUILD_DIR)
 	@echo "Done."
+	@echo "Note: Fuzz corpus ($(FUZZ_CORPUS_DIR)/) preserved. Remove manually if desired."
 
 # Run tests using local build
 test-local: build-local
@@ -202,7 +219,7 @@ test-local: build-local
 	@echo "All tests passed!"
 
 # Test targets
-test: test-py test-cpp test-kat test-keygen test-mlkem test-native test-cross-validation test-benchmarks
+test: test-py test-cpp test-kat test-keygen test-mlkem test-native test-cross-validation test-benchmarks test-constant-time
 
 test-py: build-py
 	docker run --rm $(IMAGE_NAME_PY) python -m pytest tests/py/ -v
@@ -269,6 +286,141 @@ test-keygen-py: build-py
 
 test-keygen-cpp: build-cpp
 	docker run --rm $(IMAGE_NAME_CPP) ./build/test_keygen
+
+# Constant-Time Verification Tests (dudect methodology)
+# Tests that cryptographic operations don't leak timing information
+CT_BUILD_DIR := build-ct
+
+test-constant-time:
+	@echo "Building constant-time verification tests..."
+	@mkdir -p $(CT_BUILD_DIR)
+	cd $(CT_BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+	cd $(CT_BUILD_DIR) && make -j$(CMAKE_JOBS) test_constant_time
+	@echo ""
+	@echo "Running constant-time verification tests (dudect methodology)..."
+	@echo "This tests for timing leaks in cryptographic operations."
+	@echo ""
+	./$(CT_BUILD_DIR)/test_constant_time
+
+# ============================================================================
+# Fuzz Testing (requires LLVM Clang with libFuzzer + AddressSanitizer)
+# Apple's Clang doesn't include libFuzzer - must use Homebrew LLVM
+# Install: brew install llvm
+# ============================================================================
+FUZZ_BUILD_DIR := build-fuzz
+FUZZ_CORPUS_DIR := fuzz-corpus
+FUZZ_TIME ?= 60
+
+# Detect LLVM Clang (Homebrew installs to /opt/homebrew/opt/llvm on Apple Silicon)
+LLVM_PATH := $(shell brew --prefix llvm 2>/dev/null || echo "/opt/homebrew/opt/llvm")
+LLVM_CLANG := $(LLVM_PATH)/bin/clang++
+
+# ============================================================================
+# Fuzz Testing (Docker-based - works on any platform)
+# ============================================================================
+IMAGE_NAME_FUZZ := dsa-fuzz
+
+fuzz-build:
+	@echo "Building fuzz testing Docker image..."
+	docker build -t $(IMAGE_NAME_FUZZ) -f Dockerfile.fuzz .
+
+fuzz: fuzz-build
+	@echo "Running all fuzzers in container ($(FUZZ_TIME)s each)..."
+	@mkdir -p $(FUZZ_CORPUS_DIR)/mldsa $(FUZZ_CORPUS_DIR)/slhdsa $(FUZZ_CORPUS_DIR)/mlkem
+	docker run --rm \
+		-e FUZZ_TIME=$(FUZZ_TIME) \
+		-v $(PWD)/$(FUZZ_CORPUS_DIR):/corpus \
+		$(IMAGE_NAME_FUZZ)
+
+fuzz-mldsa: fuzz-build
+	@echo "Fuzzing ML-DSA verification in container ($(FUZZ_TIME)s)..."
+	@mkdir -p $(FUZZ_CORPUS_DIR)/mldsa
+	docker run --rm \
+		-v $(PWD)/$(FUZZ_CORPUS_DIR)/mldsa:/corpus/mldsa \
+		$(IMAGE_NAME_FUZZ) \
+		sh -c "timeout $(FUZZ_TIME) ./build/fuzz_mldsa_verify /corpus/mldsa -max_len=10000 || true"
+
+fuzz-slhdsa: fuzz-build
+	@echo "Fuzzing SLH-DSA verification in container ($(FUZZ_TIME)s)..."
+	@mkdir -p $(FUZZ_CORPUS_DIR)/slhdsa
+	docker run --rm \
+		-v $(PWD)/$(FUZZ_CORPUS_DIR)/slhdsa:/corpus/slhdsa \
+		$(IMAGE_NAME_FUZZ) \
+		sh -c "timeout $(FUZZ_TIME) ./build/fuzz_slhdsa_verify /corpus/slhdsa -max_len=20000 || true"
+
+fuzz-mlkem: fuzz-build
+	@echo "Fuzzing ML-KEM decapsulation in container ($(FUZZ_TIME)s)..."
+	@mkdir -p $(FUZZ_CORPUS_DIR)/mlkem
+	docker run --rm \
+		-v $(PWD)/$(FUZZ_CORPUS_DIR)/mlkem:/corpus/mlkem \
+		$(IMAGE_NAME_FUZZ) \
+		sh -c "timeout $(FUZZ_TIME) ./build/fuzz_mlkem_decaps /corpus/mlkem -max_len=2000 || true"
+
+# ============================================================================
+# Local Fuzz Testing (requires LLVM Clang with libFuzzer)
+# Apple's Clang doesn't include libFuzzer - must use Homebrew LLVM
+# Install: brew install llvm
+# ============================================================================
+
+fuzz-local-build:
+	@echo "Building fuzz targets (requires LLVM Clang with libFuzzer)..."
+	@if [ ! -x "$(LLVM_CLANG)" ]; then \
+		echo ""; \
+		echo "Error: LLVM Clang not found at $(LLVM_CLANG)"; \
+		echo ""; \
+		echo "Apple's Clang doesn't include libFuzzer. Install LLVM with:"; \
+		echo "  brew install llvm"; \
+		echo ""; \
+		echo "Or use Docker-based fuzzing instead:"; \
+		echo "  make fuzz"; \
+		echo ""; \
+		exit 1; \
+	fi
+	@echo "Using LLVM Clang: $(LLVM_CLANG)"
+	@mkdir -p $(FUZZ_BUILD_DIR)
+	cd $(FUZZ_BUILD_DIR) && cmake .. \
+		-DCMAKE_CXX_COMPILER=$(LLVM_CLANG) \
+		-DCMAKE_C_COMPILER=$(LLVM_PATH)/bin/clang \
+		-DCMAKE_BUILD_TYPE=Debug \
+		-DBUILD_FUZZING=ON
+	cd $(FUZZ_BUILD_DIR) && make -j$(CMAKE_JOBS) fuzz_mldsa_verify fuzz_slhdsa_verify fuzz_mlkem_decaps
+	@echo ""
+	@echo "Fuzz targets built in $(FUZZ_BUILD_DIR)/"
+	@ls -la $(FUZZ_BUILD_DIR)/fuzz_* 2>/dev/null || true
+
+fuzz-local: fuzz-local-build
+	@echo ""
+	@echo "Running quick fuzz tests ($(FUZZ_TIME) seconds each)..."
+	@mkdir -p $(FUZZ_CORPUS_DIR)/mldsa $(FUZZ_CORPUS_DIR)/slhdsa $(FUZZ_CORPUS_DIR)/mlkem
+	@echo ""
+	@echo "=== Fuzzing ML-DSA verification ==="
+	./$(FUZZ_BUILD_DIR)/fuzz_mldsa_verify $(FUZZ_CORPUS_DIR)/mldsa -max_total_time=$(FUZZ_TIME) -max_len=10000 || true
+	@echo ""
+	@echo "=== Fuzzing SLH-DSA verification ==="
+	./$(FUZZ_BUILD_DIR)/fuzz_slhdsa_verify $(FUZZ_CORPUS_DIR)/slhdsa -max_total_time=$(FUZZ_TIME) -max_len=20000 || true
+	@echo ""
+	@echo "=== Fuzzing ML-KEM decapsulation ==="
+	./$(FUZZ_BUILD_DIR)/fuzz_mlkem_decaps $(FUZZ_CORPUS_DIR)/mlkem -max_total_time=$(FUZZ_TIME) -max_len=2000 || true
+	@echo ""
+	@echo "Fuzzing complete. Corpus saved in $(FUZZ_CORPUS_DIR)/"
+
+fuzz-local-mldsa: fuzz-local-build
+	@mkdir -p $(FUZZ_CORPUS_DIR)/mldsa
+	@echo "Fuzzing ML-DSA verification for $(FUZZ_TIME) seconds..."
+	@echo "Press Ctrl+C to stop early. Corpus saved in $(FUZZ_CORPUS_DIR)/mldsa/"
+	./$(FUZZ_BUILD_DIR)/fuzz_mldsa_verify $(FUZZ_CORPUS_DIR)/mldsa -max_total_time=$(FUZZ_TIME) -max_len=10000
+
+fuzz-local-slhdsa: fuzz-local-build
+	@mkdir -p $(FUZZ_CORPUS_DIR)/slhdsa
+	@echo "Fuzzing SLH-DSA verification for $(FUZZ_TIME) seconds..."
+	@echo "Press Ctrl+C to stop early. Corpus saved in $(FUZZ_CORPUS_DIR)/slhdsa/"
+	./$(FUZZ_BUILD_DIR)/fuzz_slhdsa_verify $(FUZZ_CORPUS_DIR)/slhdsa -max_total_time=$(FUZZ_TIME) -max_len=20000
+
+fuzz-local-mlkem: fuzz-local-build
+	@mkdir -p $(FUZZ_CORPUS_DIR)/mlkem
+	@echo "Fuzzing ML-KEM decapsulation for $(FUZZ_TIME) seconds..."
+	@echo "Press Ctrl+C to stop early. Corpus saved in $(FUZZ_CORPUS_DIR)/mlkem/"
+	./$(FUZZ_BUILD_DIR)/fuzz_mlkem_decaps $(FUZZ_CORPUS_DIR)/mlkem -max_total_time=$(FUZZ_TIME) -max_len=2000
 
 # Documentation (Doxygen with Doxygen Awesome CSS theme)
 IMAGE_NAME_DOCS := dsa-docs

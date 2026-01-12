@@ -129,44 +129,32 @@ inline void ct_copy_conditional(
  *
  * Returns true if arrays are equal, false otherwise.
  * Always examines all bytes regardless of where differences occur.
+ *
+ * NOTE: Size mismatch is checked first as sizes are not considered secret.
+ * The byte comparison is constant-time for equal-sized arrays.
  */
 [[nodiscard]] inline bool ct_equal(
     std::span<const uint8_t> a,
     std::span<const uint8_t> b) noexcept {
 
-    // Use the larger size to ensure constant-time regardless of size mismatch
-    size_t max_len = (a.size() > b.size()) ? a.size() : b.size();
-    size_t min_len = (a.size() < b.size()) ? a.size() : b.size();
+    if (a.size() != b.size()) {
+        return false;  // Size mismatch is not secret data
+    }
 
     volatile uint8_t diff = 0;
 
-    // Compare common bytes
-    for (size_t i = 0; i < min_len; ++i) {
+    for (size_t i = 0; i < a.size(); ++i) {
         diff |= static_cast<uint8_t>(a[i] ^ b[i]);
     }
 
-    // Process remaining bytes from the longer array (will always differ if sizes differ)
-    // This ensures we touch all bytes for constant time
-    for (size_t i = min_len; i < max_len; ++i) {
-        if (a.size() > b.size()) {
-            diff |= a[i];
-        } else {
-            diff |= b[i];
-        }
-    }
-
-    // Mark size difference
-    volatile uint8_t size_diff = static_cast<uint8_t>(a.size() != b.size());
-    diff |= size_diff;
-
-    uint8_t result = diff;
+    // Memory barrier to prevent reordering
 #if defined(__GNUC__) || defined(__clang__)
     __asm__ __volatile__("" ::: "memory");
 #elif defined(_MSC_VER)
     _ReadWriteBarrier();
 #endif
 
-    return result == 0;
+    return diff == 0;
 }
 
 /**

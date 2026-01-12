@@ -1,0 +1,57 @@
+# Dockerfile for fuzz testing with LLVM/libFuzzer
+# Uses Ubuntu with LLVM for proper libFuzzer support
+
+FROM ubuntu:24.04
+
+# Avoid interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install build dependencies and LLVM
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    clang \
+    llvm \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Verify clang has fuzzer support
+RUN clang++ --version && \
+    echo '#include <cstdint>\n#include <cstddef>\nextern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) { return 0; }' | \
+    clang++ -x c++ -fsanitize=fuzzer,address - -o /tmp/test_fuzzer && \
+    rm /tmp/test_fuzzer && \
+    echo "libFuzzer support verified!"
+
+WORKDIR /app
+
+# Copy source code
+COPY src/ /app/src/
+COPY tests/ /app/tests/
+COPY CMakeLists.txt /app/
+
+# Build fuzz targets (disable examples and tests for minimal image)
+RUN mkdir -p build && cd build && \
+    cmake .. \
+        -DCMAKE_CXX_COMPILER=clang++ \
+        -DCMAKE_C_COMPILER=clang \
+        -DCMAKE_BUILD_TYPE=Debug \
+        -DBUILD_FUZZING=ON \
+        -DBUILD_EXAMPLES=OFF \
+        -DBUILD_TESTING=OFF && \
+    make -j$(nproc) fuzz_mldsa_verify fuzz_slhdsa_verify fuzz_mlkem_decaps
+
+# Create corpus directories
+RUN mkdir -p /corpus/mldsa /corpus/slhdsa /corpus/mlkem
+
+# Default: run all fuzzers briefly
+CMD ["sh", "-c", "\
+    echo '=== Fuzzing ML-DSA verification ===' && \
+    timeout ${FUZZ_TIME:-60} ./build/fuzz_mldsa_verify /corpus/mldsa -max_len=10000 || true && \
+    echo '' && \
+    echo '=== Fuzzing SLH-DSA verification ===' && \
+    timeout ${FUZZ_TIME:-60} ./build/fuzz_slhdsa_verify /corpus/slhdsa -max_len=20000 || true && \
+    echo '' && \
+    echo '=== Fuzzing ML-KEM decapsulation ===' && \
+    timeout ${FUZZ_TIME:-60} ./build/fuzz_mlkem_decaps /corpus/mlkem -max_len=2000 || true && \
+    echo '' && \
+    echo 'Fuzzing complete!'"]

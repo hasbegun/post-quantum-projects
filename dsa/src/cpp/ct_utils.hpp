@@ -67,26 +67,27 @@ inline void barrier() noexcept {
  *
  * Returns true if arrays are equal, false otherwise.
  * Always examines all bytes regardless of where differences occur.
+ *
+ * NOTE: This is a simple implementation. For highest assurance, use
+ * platform-specific constant-time primitives or verify with timing tools.
  */
 [[nodiscard]] inline bool equal(
     std::span<const uint8_t> a,
     std::span<const uint8_t> b) noexcept {
 
-    // Use XOR of sizes to avoid early return on size mismatch
-    // This is constant-time because we always process min(a.size(), b.size()) bytes
-    size_t size_diff = a.size() ^ b.size();
+    if (a.size() != b.size()) {
+        return false;  // Size mismatch is not secret data
+    }
 
     volatile uint8_t diff = 0;
-    size_t len = (a.size() < b.size()) ? a.size() : b.size();
 
-    for (size_t i = 0; i < len; ++i) {
+    for (size_t i = 0; i < a.size(); ++i) {
         diff |= static_cast<uint8_t>(a[i] ^ b[i]);
     }
 
     barrier();
 
-    // Return false if sizes differ OR if any byte differs
-    return (size_diff == 0) && (diff == 0);
+    return diff == 0;
 }
 
 /**

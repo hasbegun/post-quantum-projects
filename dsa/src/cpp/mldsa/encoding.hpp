@@ -12,6 +12,7 @@
 #include <tuple>
 #include <optional>
 #include <span>
+#include <stdexcept>
 
 namespace mldsa {
 
@@ -46,6 +47,11 @@ namespace mldsa {
  */
 [[nodiscard]] inline std::tuple<std::vector<uint8_t>, std::vector<std::vector<int32_t>>>
 pk_decode(std::span<const uint8_t> pk, const Params& params) {
+    // Validate input size before accessing memory
+    if (pk.size() < params.pk_size()) {
+        throw std::invalid_argument("Public key too short");
+    }
+
     std::vector<uint8_t> rho(pk.begin(), pk.begin() + 32);
 
     int bitlen = 23 - D;
@@ -127,6 +133,11 @@ struct DecodedSK {
 
 [[nodiscard]] inline DecodedSK sk_decode(
     std::span<const uint8_t> sk, const Params& params) {
+
+    // Validate input size before accessing memory
+    if (sk.size() < params.sk_size()) {
+        throw std::invalid_argument("Secret key too short");
+    }
 
     DecodedSK result;
     size_t offset = 0;

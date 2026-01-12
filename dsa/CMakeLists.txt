@@ -7,6 +7,7 @@ project(dsa VERSION 1.0.0 LANGUAGES CXX)
 # Options
 option(BUILD_PYTHON_BINDINGS "Build Python bindings using pybind11" OFF)
 option(BUILD_TESTING "Build test executables" ON)
+option(BUILD_EXAMPLES "Build example executables" ON)
 
 # C++20 standard
 set(CMAKE_CXX_STANDARD 20)
@@ -126,7 +127,7 @@ if(BUILD_PYTHON_BINDINGS)
 endif()
 
 # ============================================================================
-# Executables (keygen, sign, demos)
+# Executables (keygen, sign)
 # ============================================================================
 
 # Key generation tool
@@ -141,47 +142,53 @@ add_executable(sign
 )
 target_link_libraries(sign PRIVATE mldsa slhdsa)
 
-# DSA demo
-add_executable(dsa_demo
-    examples/cpp/demo.cpp
-)
-target_link_libraries(dsa_demo PRIVATE mldsa slhdsa)
-target_include_directories(dsa_demo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+# ============================================================================
+# Examples (optional)
+# ============================================================================
 
-# ML-DSA Certificate Example
-add_executable(mldsa_cert_example
-    examples/cpp/mldsa_certificate.cpp
-)
-target_link_libraries(mldsa_cert_example PRIVATE mldsa)
-target_include_directories(mldsa_cert_example PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+if(BUILD_EXAMPLES)
+    # DSA demo
+    add_executable(dsa_demo
+        examples/cpp/demo.cpp
+    )
+    target_link_libraries(dsa_demo PRIVATE mldsa slhdsa)
+    target_include_directories(dsa_demo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
 
-# SLH-DSA Certificate Example
-add_executable(slhdsa_cert_example
-    examples/cpp/slhdsa_certificate.cpp
-)
-target_link_libraries(slhdsa_cert_example PRIVATE slhdsa)
-target_include_directories(slhdsa_cert_example PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+    # ML-DSA Certificate Example
+    add_executable(mldsa_cert_example
+        examples/cpp/mldsa_certificate.cpp
+    )
+    target_link_libraries(mldsa_cert_example PRIVATE mldsa)
+    target_include_directories(mldsa_cert_example PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
 
-# ML-KEM Demo
-add_executable(mlkem_demo
-    examples/cpp/mlkem_demo.cpp
-)
-target_link_libraries(mlkem_demo PRIVATE mlkem)
-target_include_directories(mlkem_demo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+    # SLH-DSA Certificate Example
+    add_executable(slhdsa_cert_example
+        examples/cpp/slhdsa_certificate.cpp
+    )
+    target_link_libraries(slhdsa_cert_example PRIVATE slhdsa)
+    target_include_directories(slhdsa_cert_example PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
 
-# Demo App Server
-add_executable(demo_server
-    examples/app/server.cpp
-)
-target_link_libraries(demo_server PRIVATE mldsa slhdsa)
-target_include_directories(demo_server PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+    # ML-KEM Demo
+    add_executable(mlkem_demo
+        examples/cpp/mlkem_demo.cpp
+    )
+    target_link_libraries(mlkem_demo PRIVATE mlkem)
+    target_include_directories(mlkem_demo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
 
-# Demo App Client
-add_executable(demo_client
-    examples/app/client.cpp
-)
-target_link_libraries(demo_client PRIVATE mldsa slhdsa)
-target_include_directories(demo_client PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+    # Demo App Server
+    add_executable(demo_server
+        examples/app/server.cpp
+    )
+    target_link_libraries(demo_server PRIVATE mldsa slhdsa)
+    target_include_directories(demo_server PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+
+    # Demo App Client
+    add_executable(demo_client
+        examples/app/client.cpp
+    )
+    target_link_libraries(demo_client PRIVATE mldsa slhdsa)
+    target_include_directories(demo_client PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+endif()
 
 # ============================================================================
 # Tests
@@ -224,6 +231,60 @@ if(BUILD_TESTING)
     add_executable(test_keygen tests/cpp/test_keygen.cpp)
     target_include_directories(test_keygen PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
     add_test(NAME keygen_tests COMMAND test_keygen)
+
+    # Constant-Time Verification Tests (dudect methodology)
+    add_executable(test_constant_time tests/timing/test_constant_time.cpp)
+    target_link_libraries(test_constant_time PRIVATE mldsa slhdsa)
+    target_include_directories(test_constant_time PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/timing
+    )
+    add_test(NAME constant_time_tests COMMAND test_constant_time)
+endif()
+
+# ============================================================================
+# Fuzz Testing (requires Clang with libFuzzer)
+# ============================================================================
+
+option(BUILD_FUZZING "Build fuzz testing targets (requires Clang)" OFF)
+
+if(BUILD_FUZZING)
+    # Check for Clang (libFuzzer requires it)
+    if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        message(WARNING "Fuzzing requires Clang compiler. Skipping fuzz targets.")
+    else()
+        message(STATUS "Building fuzz targets with libFuzzer")
+
+        # Common fuzzer flags
+        set(FUZZER_FLAGS "-fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer -g")
+
+        # ML-DSA verification fuzzer
+        add_executable(fuzz_mldsa_verify tests/fuzz/fuzz_mldsa_verify.cpp)
+        target_link_libraries(fuzz_mldsa_verify PRIVATE mldsa)
+        target_include_directories(fuzz_mldsa_verify PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+        set_target_properties(fuzz_mldsa_verify PROPERTIES
+            COMPILE_FLAGS "${FUZZER_FLAGS}"
+            LINK_FLAGS "${FUZZER_FLAGS}"
+        )
+
+        # SLH-DSA verification fuzzer
+        add_executable(fuzz_slhdsa_verify tests/fuzz/fuzz_slhdsa_verify.cpp)
+        target_link_libraries(fuzz_slhdsa_verify PRIVATE slhdsa)
+        target_include_directories(fuzz_slhdsa_verify PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+        set_target_properties(fuzz_slhdsa_verify PROPERTIES
+            COMPILE_FLAGS "${FUZZER_FLAGS}"
+            LINK_FLAGS "${FUZZER_FLAGS}"
+        )
+
+        # ML-KEM decapsulation fuzzer
+        add_executable(fuzz_mlkem_decaps tests/fuzz/fuzz_mlkem_decaps.cpp)
+        target_link_libraries(fuzz_mlkem_decaps PRIVATE mlkem)
+        target_include_directories(fuzz_mlkem_decaps PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+        set_target_properties(fuzz_mlkem_decaps PROPERTIES
+            COMPILE_FLAGS "${FUZZER_FLAGS}"
+            LINK_FLAGS "${FUZZER_FLAGS}"
+        )
+    endif()
 endif()
 
 # ============================================================================

@@ -1,0 +1,177 @@
+# Doxyfile for Post-Quantum Cryptography Library
+# ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205)
+
+#---------------------------------------------------------------------------
+# Project Information
+#---------------------------------------------------------------------------
+
+PROJECT_NAME           = "Post-Quantum Cryptography Library"
+PROJECT_NUMBER         = "1.0.0"
+PROJECT_BRIEF          = "NIST FIPS 203/204/205 compliant implementations of ML-KEM, ML-DSA, and SLH-DSA"
+PROJECT_LOGO           =
+
+OUTPUT_DIRECTORY       = docs/api
+CREATE_SUBDIRS         = NO
+OUTPUT_LANGUAGE        = English
+
+#---------------------------------------------------------------------------
+# Build Configuration
+#---------------------------------------------------------------------------
+
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = YES
+EXTRACT_LOCAL_CLASSES  = YES
+HIDE_UNDOC_MEMBERS     = NO
+HIDE_UNDOC_CLASSES     = NO
+BRIEF_MEMBER_DESC      = YES
+REPEAT_BRIEF           = YES
+ALWAYS_DETAILED_SEC    = NO
+INLINE_INHERITED_MEMB  = NO
+FULL_PATH_NAMES        = YES
+STRIP_FROM_PATH        = src/cpp
+SHORT_NAMES            = NO
+
+JAVADOC_AUTOBRIEF      = YES
+MULTILINE_CPP_IS_BRIEF = NO
+INHERIT_DOCS           = YES
+SEPARATE_MEMBER_PAGES  = NO
+TAB_SIZE               = 4
+
+OPTIMIZE_OUTPUT_FOR_C  = NO
+BUILTIN_STL_SUPPORT    = YES
+CPP_CLI_SUPPORT        = NO
+
+#---------------------------------------------------------------------------
+# Input Files
+#---------------------------------------------------------------------------
+
+INPUT                  = src/cpp \
+                         docs/mainpage.md \
+                         docs/SECURITY_AUDIT.md
+INPUT_ENCODING         = UTF-8
+FILE_PATTERNS          = *.hpp *.cpp *.h *.md
+RECURSIVE              = YES
+EXCLUDE                = src/cpp/bindings
+EXCLUDE_PATTERNS       = */test/* *_test.cpp
+EXCLUDE_SYMLINKS       = NO
+
+USE_MDFILE_AS_MAINPAGE = docs/mainpage.md
+
+#---------------------------------------------------------------------------
+# Source Browsing
+#---------------------------------------------------------------------------
+
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = NO
+STRIP_CODE_COMMENTS    = YES
+REFERENCED_BY_RELATION = YES
+REFERENCES_RELATION    = YES
+REFERENCES_LINK_SOURCE = YES
+SOURCE_TOOLTIPS        = YES
+USE_HTAGS              = NO
+VERBATIM_HEADERS       = YES
+
+#---------------------------------------------------------------------------
+# Index Configuration
+#---------------------------------------------------------------------------
+
+ALPHABETICAL_INDEX     = YES
+IGNORE_PREFIX          =
+
+#---------------------------------------------------------------------------
+# HTML Output
+#---------------------------------------------------------------------------
+
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+HTML_FILE_EXTENSION    = .html
+HTML_COLORSTYLE        = LIGHT
+HTML_COLORSTYLE_HUE    = 209
+HTML_COLORSTYLE_SAT    = 255
+HTML_COLORSTYLE_GAMMA  = 113
+HTML_DYNAMIC_MENUS     = YES
+HTML_DYNAMIC_SECTIONS  = NO
+
+# Doxygen Awesome CSS Theme (downloaded in Docker)
+HTML_EXTRA_STYLESHEET  = doxygen/doxygen-awesome.css \
+                         doxygen/doxygen-awesome-sidebar-only.css
+HTML_HEADER            =
+
+DISABLE_INDEX          = NO
+GENERATE_TREEVIEW      = YES
+FULL_SIDEBAR           = NO
+ENUM_VALUES_PER_LINE   = 4
+TREEVIEW_WIDTH         = 300
+
+EXT_LINKS_IN_WINDOW    = NO
+OBFUSCATE_EMAILS       = YES
+
+SEARCHENGINE           = YES
+SERVER_BASED_SEARCH    = NO
+
+#---------------------------------------------------------------------------
+# LaTeX Output (disabled)
+#---------------------------------------------------------------------------
+
+GENERATE_LATEX         = NO
+
+#---------------------------------------------------------------------------
+# Other Output Formats (disabled)
+#---------------------------------------------------------------------------
+
+GENERATE_RTF           = NO
+GENERATE_MAN           = NO
+GENERATE_XML           = NO
+GENERATE_DOCBOOK       = NO
+GENERATE_AUTOGEN_DEF   = NO
+GENERATE_PERLMOD       = NO
+
+#---------------------------------------------------------------------------
+# Preprocessor
+#---------------------------------------------------------------------------
+
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = YES
+EXPAND_ONLY_PREDEF     = NO
+SEARCH_INCLUDES        = YES
+INCLUDE_PATH           = src/cpp
+INCLUDE_FILE_PATTERNS  =
+PREDEFINED             = __cplusplus=202002L \
+                         DOXYGEN_SHOULD_SKIP_THIS
+SKIP_FUNCTION_MACROS   = YES
+
+#---------------------------------------------------------------------------
+# Dot Graphs
+#---------------------------------------------------------------------------
+
+HAVE_DOT               = YES
+DOT_NUM_THREADS        = 0
+CLASS_GRAPH            = YES
+COLLABORATION_GRAPH    = YES
+GROUP_GRAPHS           = YES
+UML_LOOK               = NO
+TEMPLATE_RELATIONS     = YES
+INCLUDE_GRAPH          = YES
+INCLUDED_BY_GRAPH      = YES
+CALL_GRAPH             = YES
+CALLER_GRAPH           = YES
+GRAPHICAL_HIERARCHY    = YES
+DIRECTORY_GRAPH        = YES
+DOT_IMAGE_FORMAT       = svg
+INTERACTIVE_SVG        = YES
+DOT_GRAPH_MAX_NODES    = 100
+MAX_DOT_GRAPH_DEPTH    = 0
+DOT_MULTI_TARGETS      = YES
+GENERATE_LEGEND        = YES
+
+#---------------------------------------------------------------------------
+# Warnings
+#---------------------------------------------------------------------------
+
+QUIET                  = NO
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = YES
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = NO
+WARN_FORMAT            = "$file:$line: $text"

@@ -262,15 +262,21 @@ test-keygen-py: build-py
 test-keygen-cpp: build-cpp
 	docker run --rm $(IMAGE_NAME_CPP) ./build/test_keygen
 
-# Documentation
-docs:
-	@echo "Building documentation..."
-	@mkdir -p docs/_build
-	docker run --rm -v $(PWD)/docs:/docs squidfunk/mkdocs-material build -d /docs/_build || echo "Install mkdocs-material or run: pip install mkdocs-material"
+# Documentation (Doxygen with Doxygen Awesome CSS theme)
+IMAGE_NAME_DOCS := dsa-docs
 
-docs-serve:
+docs:
+	@echo "Building API documentation with Doxygen..."
+	@rm -rf docs/api/html 2>/dev/null || true
+	docker build -f docs/Dockerfile.docs -o type=local,dest=docs/api .
+	@echo ""
+	@echo "Documentation built successfully!"
+	@echo "Open docs/api/docs/index.html in your browser"
+
+docs-serve: docs
 	@echo "Serving documentation at http://localhost:8000"
-	docker run --rm -p 8000:8000 -v $(PWD)/docs:/docs squidfunk/mkdocs-material serve -a 0.0.0.0:8000 || echo "Install mkdocs-material or run: pip install mkdocs-material && mkdocs serve"
+	@echo "Press Ctrl+C to stop"
+	docker run --rm -p 8000:80 -v $(PWD)/docs/api/docs:/usr/share/nginx/html:ro nginx:alpine
 
 # Development
 dev:

@@ -206,7 +206,7 @@ The hint vector operations may have minor timing variations based on the number 
 1. **This implementation is improved but still reference-quality** - while critical timing vulnerabilities have been addressed, it has not been formally verified
 2. For high-security applications, use NIST-certified or audited implementations:
    - [liboqs](https://github.com/open-quantum-safe/liboqs) - Open Quantum Safe project
-   - [pqcrypto](https://github.com/pqcrypto) - PQCRYPTO consortium
+   - [Post-Quantum Cryptography Alliance (PQCA)](https://pqca.org/) - Linux Foundation projects
    - Vendor implementations with side-channel certifications
 
 ### For Further Hardening

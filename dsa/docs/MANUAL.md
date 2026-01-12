@@ -50,8 +50,8 @@ This manual covers installation, key generation, certificate creation, and integ
 
 ```bash
 # Clone the repository
-git clone https://github.com/hasbegun/dsa.git
-cd dsa
+git clone https://github.com/hasbegun/post-quantum-projects.git
+cd post-quantum-projects/dsa
 
 # Build Docker images
 make build        # Build both Python and C++ images
@@ -86,8 +86,8 @@ sudo pacman -S cmake openssl
 
 ```bash
 # Clone the repository
-git clone https://github.com/hasbegun/dsa.git
-cd dsa
+git clone https://github.com/hasbegun/post-quantum-projects.git
+cd post-quantum-projects/dsa
 
 # Build (Release mode, parallel compilation)
 make build-local
@@ -120,8 +120,8 @@ make clean-all
 
 ```bash
 # Clone and build manually
-git clone https://github.com/hasbegun/dsa.git
-cd dsa
+git clone https://github.com/hasbegun/post-quantum-projects.git
+cd post-quantum-projects/dsa
 
 mkdir build && cd build
 cmake ../src/cpp -DCMAKE_BUILD_TYPE=Release
@@ -154,8 +154,8 @@ sudo make install
 
 ```bash
 # Clone the repository
-git clone https://github.com/hasbegun/dsa.git
-cd dsa
+git clone https://github.com/hasbegun/post-quantum-projects.git
+cd post-quantum-projects/dsa
 
 # Install in development mode
 pip install -e .
@@ -826,8 +826,8 @@ Before diving into specific use cases, here's how to quickly get started:
 
 ```bash
 # 1. Clone and build
-git clone https://github.com/hasbegun/dsa.git
-cd dsa
+git clone https://github.com/hasbegun/post-quantum-projects.git
+cd post-quantum-projects/dsa
 make build
 
 # 2. Generate keys

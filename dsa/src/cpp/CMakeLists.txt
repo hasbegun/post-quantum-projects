@@ -107,6 +107,16 @@ target_link_libraries(sign PRIVATE
     slhdsa
 )
 
+# Verification tool
+add_executable(verify
+    verify.cpp
+)
+
+target_link_libraries(verify PRIVATE
+    mldsa
+    slhdsa
+)
+
 # DSA demo executable
 add_executable(dsa_demo
     ${CMAKE_CURRENT_SOURCE_DIR}/../../examples/cpp/demo.cpp

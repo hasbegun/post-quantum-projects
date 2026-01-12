@@ -49,7 +49,8 @@ CPP_CLI_SUPPORT        = NO
 INPUT                  = src/cpp \
                          src/py \
                          docs/mainpage.md \
-                         docs/SECURITY_AUDIT.md
+                         docs/SECURITY_AUDIT.md \
+                         docs/FIRMWARE_PROTECTION.md
 INPUT_ENCODING         = UTF-8
 FILE_PATTERNS          = *.hpp *.cpp *.h *.md *.py
 RECURSIVE              = YES

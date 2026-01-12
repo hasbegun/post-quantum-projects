@@ -27,6 +27,7 @@ COPY src/py/ src/py/
 COPY docs/Doxyfile docs/Doxyfile
 COPY docs/mainpage.md docs/mainpage.md
 COPY docs/SECURITY_AUDIT.md docs/SECURITY_AUDIT.md
+COPY docs/FIRMWARE_PROTECTION.md docs/FIRMWARE_PROTECTION.md
 
 # Generate documentation
 RUN doxygen docs/Doxyfile

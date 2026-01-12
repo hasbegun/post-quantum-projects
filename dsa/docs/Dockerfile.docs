@@ -23,6 +23,7 @@ RUN curl -fsSL https://github.com/jothepro/doxygen-awesome-css/archive/refs/tags
 
 # Copy source files and documentation config
 COPY src/cpp/ src/cpp/
+COPY src/py/ src/py/
 COPY docs/Doxyfile docs/Doxyfile
 COPY docs/mainpage.md docs/mainpage.md
 COPY docs/SECURITY_AUDIT.md docs/SECURITY_AUDIT.md

@@ -145,6 +145,107 @@ inline void zero(std::span<uint8_t> data) noexcept {
     return 1 - lt_u32(a, b);
 }
 
+/**
+ * Secure zeroization for int32_t vectors.
+ * Used for polynomial coefficient arrays.
+ */
+inline void zero_poly(std::vector<int32_t>& data) noexcept {
+    volatile int32_t* ptr = data.data();
+    for (size_t i = 0; i < data.size(); ++i) {
+        ptr[i] = 0;
+    }
+    barrier();
+}
+
+/**
+ * Secure zeroization for vector of int32_t vectors.
+ * Used for polynomial vector arrays.
+ */
+inline void zero_polyvec(std::vector<std::vector<int32_t>>& data) noexcept {
+    for (auto& poly : data) {
+        zero_poly(poly);
+    }
+}
+
+/**
+ * RAII wrapper for secure byte vector.
+ * Automatically zeros memory on destruction.
+ */
+class SecureBytes {
+public:
+    SecureBytes() = default;
+    explicit SecureBytes(size_t size) : data_(size, 0) {}
+    SecureBytes(const uint8_t* begin, const uint8_t* end) : data_(begin, end) {}
+    template<typename Iter>
+    SecureBytes(Iter begin, Iter end) : data_(begin, end) {}
+
+    ~SecureBytes() {
+        if (!data_.empty()) {
+            zero(data_);
+        }
+    }
+
+    // Move operations
+    SecureBytes(SecureBytes&& other) noexcept : data_(std::move(other.data_)) {
+        other.data_.clear();
+    }
+    SecureBytes& operator=(SecureBytes&& other) noexcept {
+        if (this != &other) {
+            if (!data_.empty()) {
+                zero(data_);
+            }
+            data_ = std::move(other.data_);
+            other.data_.clear();
+        }
+        return *this;
+    }
+
+    // Disable copy
+    SecureBytes(const SecureBytes&) = delete;
+    SecureBytes& operator=(const SecureBytes&) = delete;
+
+    // Accessors
+    [[nodiscard]] uint8_t* data() noexcept { return data_.data(); }
+    [[nodiscard]] const uint8_t* data() const noexcept { return data_.data(); }
+    [[nodiscard]] size_t size() const noexcept { return data_.size(); }
+    [[nodiscard]] bool empty() const noexcept { return data_.empty(); }
+    [[nodiscard]] uint8_t& operator[](size_t i) noexcept { return data_[i]; }
+    [[nodiscard]] const uint8_t& operator[](size_t i) const noexcept { return data_[i]; }
+
+    // Container operations
+    void resize(size_t n) { data_.resize(n); }
+    void push_back(uint8_t v) { data_.push_back(v); }
+    void insert(std::vector<uint8_t>::iterator pos,
+                std::vector<uint8_t>::const_iterator first,
+                std::vector<uint8_t>::const_iterator last) {
+        data_.insert(pos, first, last);
+    }
+    void clear() {
+        zero(data_);
+        data_.clear();
+    }
+
+    // Iterator support
+    [[nodiscard]] auto begin() noexcept { return data_.begin(); }
+    [[nodiscard]] auto end() noexcept { return data_.end(); }
+    [[nodiscard]] auto begin() const noexcept { return data_.begin(); }
+    [[nodiscard]] auto end() const noexcept { return data_.end(); }
+
+    // Conversion to span
+    [[nodiscard]] operator std::span<uint8_t>() noexcept { return data_; }
+    [[nodiscard]] operator std::span<const uint8_t>() const noexcept { return data_; }
+
+    // Release ownership (caller must handle zeroization)
+    [[nodiscard]] std::vector<uint8_t> release() noexcept {
+        std::vector<uint8_t> result = std::move(data_);
+        data_.clear();
+        return result;
+    }
+
+private:
+    std::vector<uint8_t> data_;
+};
+
 } // namespace ct
 
 #endif // CT_UTILS_HPP

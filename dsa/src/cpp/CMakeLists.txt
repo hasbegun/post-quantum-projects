@@ -276,3 +276,18 @@ target_include_directories(test_keygen PRIVATE
 )
 
 add_test(NAME keygen_tests COMMAND test_keygen)
+
+# Benchmark executable
+add_executable(benchmark
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../tests/cpp/benchmark.cpp
+)
+
+target_link_libraries(benchmark PRIVATE
+    mldsa
+    slhdsa
+    mlkem
+)
+
+target_include_directories(benchmark PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)

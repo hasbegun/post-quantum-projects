@@ -31,9 +31,15 @@ namespace ct {
  */
 [[nodiscard]] inline uint8_t ct_select_u8(uint8_t a, uint8_t b, bool condition) noexcept {
     // Convert bool to all-ones or all-zeros mask
-    // Using volatile to prevent compiler optimization
+    // Using volatile and memory barrier to prevent compiler optimization
     volatile uint8_t mask = static_cast<uint8_t>(-static_cast<int8_t>(condition));
-    return static_cast<uint8_t>((a & mask) | (b & ~mask));
+    uint8_t m = mask;  // Read volatile value
+#if defined(__GNUC__) || defined(__clang__)
+    __asm__ __volatile__("" ::: "memory");
+#elif defined(_MSC_VER)
+    _ReadWriteBarrier();
+#endif
+    return static_cast<uint8_t>((a & m) | (b & ~m));
 }
 
 /**
@@ -41,7 +47,13 @@ namespace ct {
  */
 [[nodiscard]] inline uint32_t ct_select_u32(uint32_t a, uint32_t b, bool condition) noexcept {
     volatile uint32_t mask = static_cast<uint32_t>(-static_cast<int32_t>(condition));
-    return (a & mask) | (b & ~mask);
+    uint32_t m = mask;  // Read volatile value
+#if defined(__GNUC__) || defined(__clang__)
+    __asm__ __volatile__("" ::: "memory");
+#elif defined(_MSC_VER)
+    _ReadWriteBarrier();
+#endif
+    return (a & m) | (b & ~m);
 }
 
 /**
@@ -49,7 +61,13 @@ namespace ct {
  */
 [[nodiscard]] inline uint64_t ct_select_u64(uint64_t a, uint64_t b, bool condition) noexcept {
     volatile uint64_t mask = static_cast<uint64_t>(-static_cast<int64_t>(condition));
-    return (a & mask) | (b & ~mask);
+    uint64_t m = mask;  // Read volatile value
+#if defined(__GNUC__) || defined(__clang__)
+    __asm__ __volatile__("" ::: "memory");
+#elif defined(_MSC_VER)
+    _ReadWriteBarrier();
+#endif
+    return (a & m) | (b & ~m);
 }
 
 /**
@@ -64,10 +82,16 @@ inline void ct_copy_conditional(
     bool condition) noexcept {
 
     volatile uint8_t mask = static_cast<uint8_t>(-static_cast<int8_t>(condition));
+    uint8_t m = mask;  // Read volatile value
+#if defined(__GNUC__) || defined(__clang__)
+    __asm__ __volatile__("" ::: "memory");
+#elif defined(_MSC_VER)
+    _ReadWriteBarrier();
+#endif
     size_t len = (dst.size() < src.size()) ? dst.size() : src.size();
 
     for (size_t i = 0; i < len; ++i) {
-        dst[i] = static_cast<uint8_t>((src[i] & mask) | (dst[i] & ~mask));
+        dst[i] = static_cast<uint8_t>((src[i] & m) | (dst[i] & ~m));
     }
 }
 
@@ -86,9 +110,15 @@ inline void ct_copy_conditional(
     std::vector<uint8_t> result(len);
 
     volatile uint8_t mask = static_cast<uint8_t>(-static_cast<int8_t>(condition));
+    uint8_t m = mask;  // Read volatile value
+#if defined(__GNUC__) || defined(__clang__)
+    __asm__ __volatile__("" ::: "memory");
+#elif defined(_MSC_VER)
+    _ReadWriteBarrier();
+#endif
 
     for (size_t i = 0; i < len; ++i) {
-        result[i] = static_cast<uint8_t>((a[i] & mask) | (b[i] & ~mask));
+        result[i] = static_cast<uint8_t>((a[i] & m) | (b[i] & ~m));
     }
 
     return result;
@@ -104,26 +134,39 @@ inline void ct_copy_conditional(
     std::span<const uint8_t> a,
     std::span<const uint8_t> b) noexcept {
 
-    if (a.size() != b.size()) {
-        // Size mismatch - still do constant-time work to avoid timing leak
-        // on the size comparison itself in some contexts
-        volatile uint8_t dummy = 0;
-        for (size_t i = 0; i < a.size(); ++i) {
-            dummy |= a[i];
-        }
-        for (size_t i = 0; i < b.size(); ++i) {
-            dummy |= b[i];
-        }
-        (void)dummy;
-        return false;
-    }
+    // Use the larger size to ensure constant-time regardless of size mismatch
+    size_t max_len = (a.size() > b.size()) ? a.size() : b.size();
+    size_t min_len = (a.size() < b.size()) ? a.size() : b.size();
 
     volatile uint8_t diff = 0;
-    for (size_t i = 0; i < a.size(); ++i) {
+
+    // Compare common bytes
+    for (size_t i = 0; i < min_len; ++i) {
         diff |= static_cast<uint8_t>(a[i] ^ b[i]);
     }
 
-    return diff == 0;
+    // Process remaining bytes from the longer array (will always differ if sizes differ)
+    // This ensures we touch all bytes for constant time
+    for (size_t i = min_len; i < max_len; ++i) {
+        if (a.size() > b.size()) {
+            diff |= a[i];
+        } else {
+            diff |= b[i];
+        }
+    }
+
+    // Mark size difference
+    volatile uint8_t size_diff = static_cast<uint8_t>(a.size() != b.size());
+    diff |= size_diff;
+
+    uint8_t result = diff;
+#if defined(__GNUC__) || defined(__clang__)
+    __asm__ __volatile__("" ::: "memory");
+#elif defined(_MSC_VER)
+    _ReadWriteBarrier();
+#endif
+
+    return result == 0;
 }
 
 /**
@@ -138,10 +181,16 @@ inline void ct_swap_conditional(
     bool condition) noexcept {
 
     volatile uint8_t mask = static_cast<uint8_t>(-static_cast<int8_t>(condition));
+    uint8_t m = mask;  // Read volatile value
+#if defined(__GNUC__) || defined(__clang__)
+    __asm__ __volatile__("" ::: "memory");
+#elif defined(_MSC_VER)
+    _ReadWriteBarrier();
+#endif
     size_t len = a.size();
 
     for (size_t i = 0; i < len; ++i) {
-        uint8_t diff = static_cast<uint8_t>((a[i] ^ b[i]) & mask);
+        uint8_t diff = static_cast<uint8_t>((a[i] ^ b[i]) & m);
         a[i] ^= diff;
         b[i] ^= diff;
     }
@@ -194,56 +243,51 @@ inline void ct_zero(std::span<uint8_t> data) noexcept {
  * If condition is false: result = b || a
  *
  * Both orderings are computed and the result is selected.
+ * This version avoids conditional branches by computing both orderings.
  */
 [[nodiscard]] inline std::vector<uint8_t> ct_concat_conditional(
     std::span<const uint8_t> a,
     std::span<const uint8_t> b,
     bool a_first) noexcept {
 
-    size_t total_len = a.size() + b.size();
-    std::vector<uint8_t> result(total_len);
+    size_t a_len = a.size();
+    size_t b_len = b.size();
+    size_t total_len = a_len + b_len;
 
-    volatile uint8_t mask = static_cast<uint8_t>(-static_cast<int8_t>(a_first));
-    volatile uint8_t inv_mask = ~mask;
+    // Compute both possible orderings
+    std::vector<uint8_t> result_ab(total_len);  // a || b
+    std::vector<uint8_t> result_ba(total_len);  // b || a
 
-    // For a_first=true:  result[0..a.size) = a, result[a.size..total) = b
-    // For a_first=false: result[0..b.size) = b, result[b.size..total) = a
-
-    // Write both possibilities and select
-    for (size_t i = 0; i < a.size(); ++i) {
-        // Position when a is first: i
-        // Position when b is first: b.size() + i
-        size_t pos_a_first = i;
-        size_t pos_b_first = b.size() + i;
-
-        // We need to write to both positions conditionally
-        // This is tricky - let's do it differently
-
-        // When a_first: byte goes to position i
-        // When !a_first: byte goes to position b.size() + i
-        uint8_t val_a = a[i];
-
-        // Compute both positions' contributions
-        result[pos_a_first] = static_cast<uint8_t>(
-            (result[pos_a_first] & inv_mask) | (val_a & mask));
-
-        if (pos_b_first < total_len) {
-            result[pos_b_first] = static_cast<uint8_t>(
-                (result[pos_b_first] & mask) | (val_a & inv_mask));
-        }
+    // Build a || b
+    for (size_t i = 0; i < a_len; ++i) {
+        result_ab[i] = a[i];
+    }
+    for (size_t i = 0; i < b_len; ++i) {
+        result_ab[a_len + i] = b[i];
     }
 
-    for (size_t i = 0; i < b.size(); ++i) {
-        size_t pos_a_first = a.size() + i;
-        size_t pos_b_first = i;
+    // Build b || a
+    for (size_t i = 0; i < b_len; ++i) {
+        result_ba[i] = b[i];
+    }
+    for (size_t i = 0; i < a_len; ++i) {
+        result_ba[b_len + i] = a[i];
+    }
 
-        uint8_t val_b = b[i];
+    // Constant-time select between the two results
+    volatile uint8_t mask = static_cast<uint8_t>(-static_cast<int8_t>(a_first));
+    uint8_t m = mask;  // Read volatile value
+#if defined(__GNUC__) || defined(__clang__)
+    __asm__ __volatile__("" ::: "memory");
+#elif defined(_MSC_VER)
+    _ReadWriteBarrier();
+#endif
 
-        result[pos_a_first] = static_cast<uint8_t>(
-            (result[pos_a_first] & inv_mask) | (val_b & mask));
-
-        result[pos_b_first] = static_cast<uint8_t>(
-            (result[pos_b_first] & mask) | (val_b & inv_mask));
+    std::vector<uint8_t> result(total_len);
+    for (size_t i = 0; i < total_len; ++i) {
+        // Select result_ab if a_first is true (mask = 0xFF)
+        // Select result_ba if a_first is false (mask = 0x00)
+        result[i] = static_cast<uint8_t>((result_ab[i] & m) | (result_ba[i] & ~m));
     }
 
     return result;

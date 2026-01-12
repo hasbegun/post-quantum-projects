@@ -206,6 +206,9 @@ private:
     /**
      * Algorithm 7: ML-DSA.Sign_internal
      * Internal signing algorithm
+     *
+     * SECURITY: This function securely zeros all sensitive key material
+     * before returning to prevent key leakage from memory.
      */
     [[nodiscard]] std::vector<uint8_t> sign_internal(
         std::span<const uint8_t> sk,
@@ -221,12 +224,30 @@ private:
 
         // Step 1: Decode private key
         auto decoded = sk_decode(sk, params_);
-        const auto& rho = decoded.rho;
-        const auto& K = decoded.K;
-        const auto& tr = decoded.tr;
-        const auto& s1 = decoded.s1;
-        const auto& s2 = decoded.s2;
-        const auto& t0 = decoded.t0;
+        // Extract mutable copies for later zeroization
+        std::vector<uint8_t> rho = decoded.rho;
+        std::vector<uint8_t> K = decoded.K;
+        std::vector<uint8_t> tr = decoded.tr;
+        std::vector<std::vector<int32_t>> s1 = decoded.s1;
+        std::vector<std::vector<int32_t>> s2 = decoded.s2;
+        std::vector<std::vector<int32_t>> t0 = decoded.t0;
+
+        // RAII cleanup guard for sensitive data
+        struct SensitiveDataGuard {
+            std::vector<uint8_t>& K_ref;
+            std::vector<std::vector<int32_t>>& s1_ref;
+            std::vector<std::vector<int32_t>>& s2_ref;
+            std::vector<std::vector<int32_t>>& t0_ref;
+            std::vector<uint8_t>& rho_prime_ref;
+
+            ~SensitiveDataGuard() {
+                ct::zero(K_ref);
+                ct::zero_polyvec(s1_ref);
+                ct::zero_polyvec(s2_ref);
+                ct::zero_polyvec(t0_ref);
+                ct::zero(rho_prime_ref);
+            }
+        };
 
         // Step 2: Compute message representative
         std::vector<uint8_t> tr_Mprime(tr.begin(), tr.end());
@@ -237,7 +258,13 @@ private:
         std::vector<uint8_t> K_rnd_mu(K.begin(), K.end());
         K_rnd_mu.insert(K_rnd_mu.end(), rnd.begin(), rnd.end());
         K_rnd_mu.insert(K_rnd_mu.end(), mu.begin(), mu.end());
-        auto rho_prime = h_function(K_rnd_mu, 64);
+        std::vector<uint8_t> rho_prime = h_function(K_rnd_mu, 64);
+
+        // Install cleanup guard - will run on any exit (return or exception)
+        SensitiveDataGuard guard{K, s1, s2, t0, rho_prime};
+
+        // Zero intermediate sensitive data
+        ct::zero(K_rnd_mu);
 
         // Step 4: Precompute NTT forms
         PolyVec s1_poly, s2_poly, t0_poly;
@@ -393,6 +420,10 @@ private:
     /**
      * Algorithm 8: ML-DSA.Verify_internal
      * Internal verification algorithm
+     *
+     * SECURITY: This function uses constant-time operations throughout.
+     * All validation checks are accumulated into a single validity flag
+     * rather than using early returns, to prevent timing side-channels.
      */
     [[nodiscard]] bool verify_internal(
         std::span<const uint8_t> pk,
@@ -405,19 +436,29 @@ private:
         int beta = params_.beta;
         int omega = params_.omega;
 
+        // Track validity in constant time - all checks continue regardless of failures
+        volatile uint32_t valid = 1;
+
         // Step 1: Decode public key
         auto [rho, t1] = pk_decode(pk, params_);
 
         // Step 2: Decode signature
         auto decoded = sig_decode(sigma, params_);
-        if (!decoded) {
-            return false;
-        }
-        const auto& c_tilde = decoded->c_tilde;
-        const auto& z = decoded->z;
-        const auto& h = decoded->h;
+        // Use constant-time conditional: if decode fails, set valid to 0
+        uint32_t decode_ok = decoded.has_value() ? 1 : 0;
+        valid &= decode_ok;
+        ct::barrier();
 
-        // Step 3: Check z norm
+        // Use dummy values if decode failed (to continue processing in constant time)
+        std::vector<uint8_t> dummy_c_tilde(params_.lambda / 4, 0);
+        std::vector<std::vector<int32_t>> dummy_z(params_.l, std::vector<int32_t>(N, 0));
+        std::vector<std::vector<int32_t>> dummy_h(params_.k, std::vector<int32_t>(N, 0));
+
+        const auto& c_tilde = decoded ? decoded->c_tilde : dummy_c_tilde;
+        const auto& z = decoded ? decoded->z : dummy_z;
+        const auto& h = decoded ? decoded->h : dummy_h;
+
+        // Step 3: Check z norm (constant-time comparison)
         std::vector<std::vector<int32_t>> z_centered;
         for (const auto& p : z) {
             std::vector<int32_t> centered;
@@ -427,20 +468,24 @@ private:
             z_centered.push_back(std::move(centered));
         }
         int32_t z_norm = infinity_norm_vec(z_centered);
-        if (z_norm >= gamma1 - beta) {
-            return false;
-        }
+        // Constant-time: valid &= (z_norm < gamma1 - beta)
+        uint32_t z_ok = ct::lt_u32(static_cast<uint32_t>(z_norm),
+                                    static_cast<uint32_t>(gamma1 - beta));
+        valid &= z_ok;
+        ct::barrier();
 
-        // Step 4: Check hint count
+        // Step 4: Check hint count (constant-time)
         int hints_count = 0;
         for (const auto& poly : h) {
             for (int32_t bit : poly) {
                 hints_count += bit;
             }
         }
-        if (hints_count > omega) {
-            return false;
-        }
+        // Constant-time: valid &= (hints_count <= omega)
+        uint32_t hints_ok = ct::ge_u32(static_cast<uint32_t>(omega),
+                                        static_cast<uint32_t>(hints_count));
+        valid &= hints_ok;
+        ct::barrier();
 
         // Step 5: Expand A matrix
         auto A_hat = expand_a(rho, params_);
@@ -510,7 +555,12 @@ private:
 
         // Use constant-time comparison for the final check
         ct::barrier();
-        return ct::equal(c_tilde, c_tilde_prime);
+        bool challenge_ok = ct::equal(c_tilde, c_tilde_prime);
+
+        // Combine all checks: valid must be 1 AND challenge must match
+        // Return true only if all checks passed
+        ct::barrier();
+        return (valid == 1) && challenge_ok;
     }
 };
 

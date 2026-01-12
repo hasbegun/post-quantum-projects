@@ -15,6 +15,7 @@
 #include "hypertree.hpp"
 #include "xmss.hpp"
 #include "utils.hpp"
+#include "ct_utils.hpp"
 #include <vector>
 #include <span>
 #include <tuple>
@@ -77,6 +78,9 @@ inline std::tuple<std::vector<uint8_t>, std::vector<uint8_t>> slh_keygen_interna
  *
  * Internal signing function.
  *
+ * SECURITY: This function securely zeros sensitive intermediate data
+ * before returning to prevent information leakage from memory.
+ *
  * @param params Parameter set
  * @param M Message to sign
  * @param sk Secret key
@@ -117,10 +121,24 @@ inline std::vector<uint8_t> slh_sign_internal(
         rand_span = pk_seed;
     }
 
+    // RAII guard to zero sensitive data on exit
+    struct CleanupGuard {
+        std::vector<uint8_t>& rand_ref;
+        std::vector<uint8_t>& digest_ref;
+
+        ~CleanupGuard() {
+            ct::ct_zero(rand_ref);
+            ct::ct_zero(digest_ref);
+        }
+    };
+
     auto R = hash_funcs->PRF_msg(sk_prf, rand_span, M);
 
     // Compute message digest
-    auto digest = hash_funcs->H_msg(R, pk_seed, pk_root, M);
+    std::vector<uint8_t> digest = hash_funcs->H_msg(R, pk_seed, pk_root, M);
+
+    // Install cleanup guard
+    CleanupGuard guard{rand_bytes, digest};
 
     // Split digest into indices
     // First part: FORS message (ceil(k*a/8) bytes)
@@ -161,12 +179,17 @@ inline std::vector<uint8_t> slh_sign_internal(
     sig.insert(sig.end(), sig_ht.begin(), sig_ht.end());
 
     return sig;
+    // CleanupGuard destructor runs here, zeroing rand_bytes and digest
 }
 
 /**
  * Algorithm 19: slh_verify_internal(M, SIG, PK)
  *
  * Internal verification function.
+ *
+ * SECURITY: This implementation uses constant-time validity tracking
+ * to prevent timing-based side-channel attacks. All checks are performed
+ * regardless of intermediate results.
  *
  * @param params Parameter set
  * @param M Message
@@ -187,25 +210,41 @@ inline bool slh_verify_internal(
     size_t k = params.k;
     size_t a = params.a;
 
-    // Check signature length
-    if (sig.size() != params.sig_size()) {
-        return false;
-    }
+    // Track validity in constant time - all checks continue regardless of failures
+    volatile uint32_t valid = 1;
 
-    // Check public key length
-    if (pk.size() != params.pk_size()) {
-        return false;
-    }
+    // Check signature length (constant-time)
+    uint32_t sig_len_ok = (sig.size() == params.sig_size()) ? 1 : 0;
+    valid &= sig_len_ok;
+    ct::ct_barrier();
+
+    // Check public key length (constant-time)
+    uint32_t pk_len_ok = (pk.size() == params.pk_size()) ? 1 : 0;
+    valid &= pk_len_ok;
+    ct::ct_barrier();
+
+    // Create dummy buffers for when inputs are invalid
+    // This ensures we always do the same amount of work
+    std::vector<uint8_t> dummy_pk(2 * n, 0);
+    std::vector<uint8_t> dummy_sig(params.sig_size(), 0);
+
+    // Use actual inputs if valid, dummy otherwise (constant-time)
+    // We can't use ct_select here easily, so we do the work with whatever we have
+    // but clamp sizes to prevent out-of-bounds access
+
+    // Safe subspan extraction - use dummy if sizes are wrong
+    std::span<const uint8_t> safe_pk = (pk_len_ok == 1) ? pk : std::span<const uint8_t>(dummy_pk);
+    std::span<const uint8_t> safe_sig = (sig_len_ok == 1) ? sig : std::span<const uint8_t>(dummy_sig);
 
     // Parse public key
-    std::span<const uint8_t> pk_seed = pk.subspan(0, n);
-    std::span<const uint8_t> pk_root = pk.subspan(n, n);
+    std::span<const uint8_t> pk_seed = safe_pk.subspan(0, n);
+    std::span<const uint8_t> pk_root = safe_pk.subspan(n, n);
 
     // Parse signature
-    std::span<const uint8_t> R = sig.subspan(0, n);
+    std::span<const uint8_t> R = safe_sig.subspan(0, n);
     size_t sig_fors_len = k * (a + 1) * n;
-    std::span<const uint8_t> sig_fors = sig.subspan(n, sig_fors_len);
-    std::span<const uint8_t> sig_ht = sig.subspan(n + sig_fors_len);
+    std::span<const uint8_t> sig_fors = safe_sig.subspan(n, sig_fors_len);
+    std::span<const uint8_t> sig_ht = safe_sig.subspan(n + sig_fors_len);
 
     // Compute message digest
     auto digest = hash_funcs->H_msg(R, pk_seed, pk_root, M);
@@ -232,8 +271,12 @@ inline bool slh_verify_internal(
 
     auto pk_fors = fors_pkFromSig(*hash_funcs, sig_fors, md, pk_seed, adrs);
 
-    // Verify hypertree signature
-    return ht_verify(*hash_funcs, pk_fors, sig_ht, pk_seed, idx_tree, idx_leaf, pk_root);
+    // Verify hypertree signature (this already uses constant-time comparison internally)
+    bool ht_valid = ht_verify(*hash_funcs, pk_fors, sig_ht, pk_seed, idx_tree, idx_leaf, pk_root);
+
+    // Combine all validity checks
+    ct::ct_barrier();
+    return (valid == 1) && ht_valid;
 }
 
 
@@ -298,6 +341,8 @@ inline std::vector<uint8_t> slh_sign(
  *
  * Verify a signature in pure mode.
  *
+ * SECURITY: Uses constant-time validity tracking to prevent timing leaks.
+ *
  * @param params Parameter set
  * @param M Message
  * @param sig Signature
@@ -312,19 +357,28 @@ inline bool slh_verify(
     std::span<const uint8_t> pk,
     std::span<const uint8_t> ctx = {}) {
 
-    if (ctx.size() > 255) {
-        return false;
-    }
+    // Check context size (constant-time validity tracking)
+    volatile uint32_t ctx_valid = (ctx.size() <= 255) ? 1 : 0;
+    ct::ct_barrier();
+
+    // Use clamped context size to prevent issues, but track validity
+    size_t safe_ctx_size = (ctx.size() <= 255) ? ctx.size() : 0;
 
     // Form prefixed message
     std::vector<uint8_t> M_prime;
-    M_prime.reserve(2 + ctx.size() + M.size());
+    M_prime.reserve(2 + safe_ctx_size + M.size());
     M_prime.push_back(PURE_MODE_PREFIX);
-    M_prime.push_back(static_cast<uint8_t>(ctx.size()));
-    M_prime.insert(M_prime.end(), ctx.begin(), ctx.end());
+    M_prime.push_back(static_cast<uint8_t>(safe_ctx_size));
+    if (ctx_valid == 1) {
+        M_prime.insert(M_prime.end(), ctx.begin(), ctx.end());
+    }
     M_prime.insert(M_prime.end(), M.begin(), M.end());
 
-    return slh_verify_internal(params, M_prime, sig, pk);
+    // Always call internal verify (does constant-time work)
+    bool internal_valid = slh_verify_internal(params, M_prime, sig, pk);
+
+    ct::ct_barrier();
+    return (ctx_valid == 1) && internal_valid;
 }
 
 

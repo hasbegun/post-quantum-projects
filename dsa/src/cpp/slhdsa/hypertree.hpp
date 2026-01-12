@@ -17,8 +17,28 @@
 #include <vector>
 #include <span>
 #include <cstdint>
+#include <stdexcept>
 
 namespace slhdsa {
+
+namespace {
+
+/**
+ * Safely compute a bit mask for tree/leaf index extraction.
+ * Validates that the height parameter is within safe bounds.
+ *
+ * @param hp Height parameter (tree height)
+ * @return Bit mask (2^hp - 1)
+ * @throws std::overflow_error if hp >= 32
+ */
+inline uint32_t safe_index_mask(size_t hp) {
+    if (hp >= 32) {
+        throw std::overflow_error("Hypertree height parameter too large (>= 32)");
+    }
+    return (1u << hp) - 1;
+}
+
+} // anonymous namespace
 
 /**
  * Algorithm 11: ht_sign(M, SK.seed, PK.seed, idx_tree, idx_leaf)
@@ -56,10 +76,13 @@ inline std::vector<uint8_t> ht_sign(
     // Get root of bottom tree for next layer
     auto root = xmss_node(hash_funcs, sk_seed, 0, static_cast<uint32_t>(hp), pk_seed, adrs);
 
+    // Pre-compute the index mask for safe operations
+    uint32_t index_mask = safe_index_mask(hp);
+
     // Sign with remaining layers
     for (size_t j = 1; j < d; ++j) {
         // Update indices for next layer
-        idx_leaf = static_cast<uint32_t>(idx_tree & ((1u << hp) - 1));
+        idx_leaf = static_cast<uint32_t>(idx_tree & index_mask);
         idx_tree = idx_tree >> hp;
 
         // Update address for layer j
@@ -123,10 +146,13 @@ inline bool ht_verify(
     // Compute root from bottom layer
     auto node = xmss_pkFromSig(hash_funcs, idx_leaf, sig_xmss, M, pk_seed, adrs);
 
+    // Pre-compute the index mask for safe operations
+    uint32_t index_mask = safe_index_mask(hp);
+
     // Verify remaining layers
     for (size_t j = 1; j < d; ++j) {
         // Update indices for next layer
-        idx_leaf = static_cast<uint32_t>(idx_tree & ((1u << hp) - 1));
+        idx_leaf = static_cast<uint32_t>(idx_tree & index_mask);
         idx_tree = idx_tree >> hp;
 
         // Update address for layer j

@@ -202,7 +202,7 @@ test-local: build-local
 	@echo "All tests passed!"
 
 # Test targets
-test: test-py test-cpp
+test: test-py test-cpp test-kat test-keygen test-mlkem test-native test-cross-validation test-benchmarks
 
 test-py: build-py
 	docker run --rm $(IMAGE_NAME_PY) python -m pytest tests/py/ -v
@@ -241,8 +241,16 @@ test-cross-validation: build-py
 	docker run --rm $(IMAGE_NAME_PY) python -m pytest tests/py/test_cross_validation.py -v
 
 # Performance benchmarks
-test-benchmarks: build-py
-	docker run --rm $(IMAGE_NAME_PY) python -m pytest tests/benchmarks/ -v --benchmark-only
+test-benchmarks: test-benchmarks-py test-benchmarks-cpp
+
+test-benchmarks-py: build-py
+	docker run --rm $(IMAGE_NAME_PY) python -m pytest tests/benchmarks/bench_mldsa.py tests/benchmarks/bench_slhdsa.py tests/benchmarks/bench_mlkem.py -v
+
+test-benchmarks-cpp: build-cpp
+	docker run --rm $(IMAGE_NAME_CPP) ./build/benchmark --iterations 100
+
+test-benchmarks-cpp-json: build-cpp
+	docker run --rm $(IMAGE_NAME_CPP) ./build/benchmark --iterations 100 --json
 
 # NIST KAT Tests (FIPS 204 & 205 compliance)
 test-kat: test-kat-mldsa test-kat-slhdsa

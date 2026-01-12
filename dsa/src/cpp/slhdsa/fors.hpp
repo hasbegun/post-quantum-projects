@@ -19,8 +19,43 @@
 #include <vector>
 #include <span>
 #include <cstdint>
+#include <cassert>
+#include <stdexcept>
 
 namespace slhdsa {
+
+namespace {
+
+/**
+ * Safely compute (tree_index * 2^height_offset) + local_index
+ * without integer overflow. Uses 64-bit arithmetic internally.
+ *
+ * @param tree_index Index of the tree (0 to k-1)
+ * @param height_offset Number of bits to shift (0 to a)
+ * @param local_index Local index within the tree level
+ * @return Global index as uint32_t
+ * @throws std::overflow_error if result would overflow uint32_t
+ */
+inline uint32_t safe_global_index(size_t tree_index, size_t height_offset, uint32_t local_index) {
+    // Check shift amount is valid
+    if (height_offset >= 32) {
+        throw std::overflow_error("FORS height offset too large (>= 32)");
+    }
+
+    // Compute using 64-bit arithmetic to detect overflow
+    uint64_t base = static_cast<uint64_t>(1) << height_offset;
+    uint64_t global_base = static_cast<uint64_t>(tree_index) * base;
+    uint64_t result = global_base + local_index;
+
+    // Check for overflow
+    if (result > static_cast<uint64_t>(UINT32_MAX)) {
+        throw std::overflow_error("FORS global index overflow");
+    }
+
+    return static_cast<uint32_t>(result);
+}
+
+} // anonymous namespace
 
 /**
  * Algorithm 13: fors_skGen(SK.seed, PK.seed, ADRS, idx)
@@ -131,7 +166,8 @@ inline std::vector<uint8_t> fors_sign(
         uint32_t idx = indices[i];
 
         // Global leaf index for selected leaf in tree i
-        uint32_t global_leaf_idx = static_cast<uint32_t>(i * (1u << a)) + idx;
+        // Uses safe computation to prevent integer overflow
+        uint32_t global_leaf_idx = safe_global_index(i, a, idx);
 
         // Add secret key element
         auto sk = fors_skGen(hash_funcs, sk_seed, pk_seed, adrs, global_leaf_idx);
@@ -143,7 +179,7 @@ inline std::vector<uint8_t> fors_sign(
             uint32_t s = (idx >> j) ^ 1;
             // Global node index at height j
             // At height j, tree i's nodes start at index i * 2^(a-j)
-            uint32_t global_node_idx = static_cast<uint32_t>(i * (1u << (a - j))) + s;
+            uint32_t global_node_idx = safe_global_index(i, a - j, s);
             auto auth_node = fors_node(hash_funcs, sk_seed, global_node_idx,
                                        static_cast<uint32_t>(j), pk_seed, adrs);
             sig_fors.insert(sig_fors.end(), auth_node.begin(), auth_node.end());
@@ -197,8 +233,8 @@ inline std::vector<uint8_t> fors_pkFromSig(
         std::span<const uint8_t> sk = sig_fors.subspan(offset, n);
         std::span<const uint8_t> auth = sig_fors.subspan(offset + n, a * n);
 
-        // Global leaf index
-        uint32_t global_leaf_idx = static_cast<uint32_t>(i * (1u << a)) + idx;
+        // Global leaf index - uses safe computation to prevent integer overflow
+        uint32_t global_leaf_idx = safe_global_index(i, a, idx);
 
         // Compute leaf from secret key
         adrs.set_tree_height(0);
@@ -213,7 +249,7 @@ inline std::vector<uint8_t> fors_pkFromSig(
             // Compute parent index
             // At height j+1, tree i's nodes start at i * 2^(a-j-1)
             uint32_t parent_local_idx = idx >> (j + 1);
-            uint32_t global_parent_idx = static_cast<uint32_t>(i * (1u << (a - j - 1))) + parent_local_idx;
+            uint32_t global_parent_idx = safe_global_index(i, a - j - 1, parent_local_idx);
             adrs.set_tree_index(global_parent_idx);
 
             // Determine if node is left child (bit is 0) or right child (bit is 1)

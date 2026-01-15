@@ -22,10 +22,12 @@
 #include <vector>
 #include <cstring>
 #include <ctime>
+#include <algorithm>
+#include <stdexcept>
 #include <getopt.h>
 
-#include "mldsa.h"
-#include "slhdsa.h"
+#include "mldsa/mldsa.hpp"
+#include "slhdsa/slh_dsa.hpp"
 
 // Base64url alphabet
 static const char BASE64URL_CHARS[] =
@@ -65,14 +67,26 @@ std::string base64url_encode(const std::string& str) {
     return base64url_encode(reinterpret_cast<const uint8_t*>(str.data()), str.length());
 }
 
+// Read binary file
+std::vector<uint8_t> read_file(const std::string& path) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file) {
+        throw std::runtime_error("Cannot open file: " + path);
+    }
+    return std::vector<uint8_t>(
+        std::istreambuf_iterator<char>(file),
+        std::istreambuf_iterator<char>()
+    );
+}
+
 /**
  * Get algorithm name from key size
  */
 std::string detect_algorithm(size_t key_size) {
     switch (key_size) {
-        case MLDSA44_SECRET_KEY_SIZE: return "mldsa44";
-        case MLDSA65_SECRET_KEY_SIZE: return "mldsa65";
-        case MLDSA87_SECRET_KEY_SIZE: return "mldsa87";
+        case 2560: return "mldsa44";
+        case 4032: return "mldsa65";
+        case 4896: return "mldsa87";
         default: return "";
     }
 }
@@ -89,35 +103,14 @@ std::string algorithm_upper(const std::string& alg) {
 }
 
 /**
- * Sign message with appropriate algorithm
+ * Sign function template for ML-DSA
  */
-int sign_message(const std::string& algorithm,
-                 const uint8_t* secret_key,
-                 const uint8_t* message, size_t message_len,
-                 const uint8_t* ctx, size_t ctx_len,
-                 uint8_t* signature, size_t* sig_len) {
-
-    if (algorithm == "mldsa44") {
-        return mldsa44_sign(signature, sig_len, message, message_len,
-                          ctx, ctx_len, secret_key);
-    } else if (algorithm == "mldsa65") {
-        return mldsa65_sign(signature, sig_len, message, message_len,
-                          ctx, ctx_len, secret_key);
-    } else if (algorithm == "mldsa87") {
-        return mldsa87_sign(signature, sig_len, message, message_len,
-                          ctx, ctx_len, secret_key);
-    }
-    return -1;
-}
-
-/**
- * Get signature size for algorithm
- */
-size_t get_signature_size(const std::string& algorithm) {
-    if (algorithm == "mldsa44") return MLDSA44_SIGNATURE_SIZE;
-    if (algorithm == "mldsa65") return MLDSA65_SIGNATURE_SIZE;
-    if (algorithm == "mldsa87") return MLDSA87_SIGNATURE_SIZE;
-    return 0;
+template<typename DSA>
+std::vector<uint8_t> sign_mldsa(const std::vector<uint8_t>& sk,
+                                 const std::vector<uint8_t>& message,
+                                 const std::vector<uint8_t>& ctx) {
+    DSA dsa;
+    return dsa.sign(sk, message, ctx);
 }
 
 void print_usage(const char* progname) {
@@ -196,97 +189,91 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Read secret key
-    std::ifstream key_stream(key_file, std::ios::binary);
-    if (!key_stream) {
-        std::cerr << "Error: Cannot open key file: " << key_file << "\n";
-        return 1;
-    }
+    try {
+        // Read secret key
+        auto secret_key = read_file(key_file);
 
-    std::vector<uint8_t> secret_key(std::istreambuf_iterator<char>(key_stream), {});
-    key_stream.close();
-
-    // Auto-detect algorithm
-    if (algorithm.empty()) {
-        algorithm = detect_algorithm(secret_key.size());
+        // Auto-detect algorithm
         if (algorithm.empty()) {
-            std::cerr << "Error: Cannot detect algorithm from key size: "
-                      << secret_key.size() << "\n";
+            algorithm = detect_algorithm(secret_key.size());
+            if (algorithm.empty()) {
+                std::cerr << "Error: Cannot detect algorithm from key size: "
+                          << secret_key.size() << "\n";
+                return 1;
+            }
+        }
+
+        // Get current time
+        time_t now = time(nullptr);
+
+        // Build payload JSON with claims
+        // Note: This is a simplified JSON builder - for production use a proper JSON library
+        std::string full_payload = payload;
+
+        // Remove closing brace to add claims
+        if (full_payload.back() == '}') {
+            full_payload.pop_back();
+
+            // Add iat claim
+            full_payload += ",\"iat\":" + std::to_string(now);
+
+            // Add exp claim if specified
+            if (expires_in >= 0) {
+                full_payload += ",\"exp\":" + std::to_string(now + expires_in);
+            }
+
+            // Add issuer if specified
+            if (!issuer.empty()) {
+                full_payload += ",\"iss\":\"" + issuer + "\"";
+            }
+
+            // Add subject if specified
+            if (!subject.empty()) {
+                full_payload += ",\"sub\":\"" + subject + "\"";
+            }
+
+            full_payload += "}";
+        }
+
+        // Build header JSON
+        std::string header = "{\"alg\":\"" + algorithm_upper(algorithm) + "\",\"typ\":\"PQT\"}";
+
+        // Base64url encode header and payload
+        std::string header_b64 = base64url_encode(header);
+        std::string payload_b64 = base64url_encode(full_payload);
+
+        // Create signing input
+        std::string signing_input = header_b64 + "." + payload_b64;
+        std::vector<uint8_t> message(signing_input.begin(), signing_input.end());
+
+        // Prepare context
+        std::string ctx_str = "pqc-token";
+        std::vector<uint8_t> ctx(ctx_str.begin(), ctx_str.end());
+
+        // Sign with appropriate algorithm
+        std::vector<uint8_t> signature;
+
+        if (algorithm == "mldsa44") {
+            signature = sign_mldsa<mldsa::MLDSA44>(secret_key, message, ctx);
+        } else if (algorithm == "mldsa65") {
+            signature = sign_mldsa<mldsa::MLDSA65>(secret_key, message, ctx);
+        } else if (algorithm == "mldsa87") {
+            signature = sign_mldsa<mldsa::MLDSA87>(secret_key, message, ctx);
+        } else {
+            std::cerr << "Error: Unsupported algorithm: " << algorithm << "\n";
             return 1;
         }
-    }
 
-    // Get current time
-    time_t now = time(nullptr);
+        // Base64url encode signature
+        std::string signature_b64 = base64url_encode(signature.data(), signature.size());
 
-    // Build payload JSON with claims
-    // Note: This is a simplified JSON builder - for production use a proper JSON library
-    std::string full_payload = payload;
+        // Output token
+        std::cout << header_b64 << "." << payload_b64 << "." << signature_b64 << "\n";
 
-    // Remove closing brace to add claims
-    if (full_payload.back() == '}') {
-        full_payload.pop_back();
+        return 0;
 
-        // Add iat claim
-        full_payload += ",\"iat\":" + std::to_string(now);
-
-        // Add exp claim if specified
-        if (expires_in >= 0) {
-            full_payload += ",\"exp\":" + std::to_string(now + expires_in);
-        }
-
-        // Add issuer if specified
-        if (!issuer.empty()) {
-            full_payload += ",\"iss\":\"" + issuer + "\"";
-        }
-
-        // Add subject if specified
-        if (!subject.empty()) {
-            full_payload += ",\"sub\":\"" + subject + "\"";
-        }
-
-        full_payload += "}";
-    }
-
-    // Build header JSON
-    std::string header = "{\"alg\":\"" + algorithm_upper(algorithm) + "\",\"typ\":\"PQT\"}";
-
-    // Base64url encode header and payload
-    std::string header_b64 = base64url_encode(header);
-    std::string payload_b64 = base64url_encode(full_payload);
-
-    // Create signing input
-    std::string signing_input = header_b64 + "." + payload_b64;
-
-    // Sign
-    size_t sig_size = get_signature_size(algorithm);
-    std::vector<uint8_t> signature(sig_size);
-    size_t actual_sig_len = 0;
-
-    const char* ctx = "pqc-token";
-    size_t ctx_len = strlen(ctx);
-
-    int result = sign_message(
-        algorithm,
-        secret_key.data(),
-        reinterpret_cast<const uint8_t*>(signing_input.data()),
-        signing_input.length(),
-        reinterpret_cast<const uint8_t*>(ctx),
-        ctx_len,
-        signature.data(),
-        &actual_sig_len
-    );
-
-    if (result != 0) {
-        std::cerr << "Error: Signing failed\n";
+    } catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << "\n";
         return 1;
     }
-
-    // Base64url encode signature
-    std::string signature_b64 = base64url_encode(signature.data(), actual_sig_len);
-
-    // Output token
-    std::cout << header_b64 << "." << payload_b64 << "." << signature_b64 << "\n";
-
-    return 0;
 }

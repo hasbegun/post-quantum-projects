@@ -188,6 +188,66 @@ if(BUILD_EXAMPLES)
     )
     target_link_libraries(demo_client PRIVATE mldsa slhdsa)
     target_include_directories(demo_client PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+
+    # =========================================================================
+    # Use Case Examples
+    # =========================================================================
+
+    # Code Signing - Sign Release
+    add_executable(sign_release
+        examples/use-cases/code-signing/sign_release.cpp
+    )
+    target_link_libraries(sign_release PRIVATE mldsa slhdsa)
+    target_include_directories(sign_release PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+
+    # Code Signing - Verify Release
+    add_executable(verify_release
+        examples/use-cases/code-signing/verify_release.cpp
+    )
+    target_link_libraries(verify_release PRIVATE mldsa slhdsa)
+    target_include_directories(verify_release PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+
+    # Firmware Signing - Sign Firmware
+    add_executable(sign_firmware
+        examples/use-cases/firmware-signing/sign_firmware.cpp
+    )
+    target_link_libraries(sign_firmware PRIVATE mldsa slhdsa)
+    target_include_directories(sign_firmware PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+
+    # Firmware Signing - Verify Firmware
+    add_executable(verify_firmware
+        examples/use-cases/firmware-signing/verify_firmware.cpp
+    )
+    target_link_libraries(verify_firmware PRIVATE mldsa slhdsa)
+    target_include_directories(verify_firmware PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+
+    # Document Signing - Sign Document
+    add_executable(sign_document
+        examples/use-cases/document-signing/sign_document.cpp
+    )
+    target_link_libraries(sign_document PRIVATE mldsa slhdsa)
+    target_include_directories(sign_document PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+
+    # Document Signing - Verify Document
+    add_executable(verify_document
+        examples/use-cases/document-signing/verify_document.cpp
+    )
+    target_link_libraries(verify_document PRIVATE mldsa slhdsa)
+    target_include_directories(verify_document PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+
+    # PQC Token - Create Token
+    add_executable(pqc_token_create
+        examples/use-cases/pqc-token/pqc_token.cpp
+    )
+    target_link_libraries(pqc_token_create PRIVATE mldsa slhdsa)
+    target_include_directories(pqc_token_create PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+
+    # PQC Token - Verify Token
+    add_executable(pqc_token_verify
+        examples/use-cases/pqc-token/verify_pqc_token.cpp
+    )
+    target_link_libraries(pqc_token_verify PRIVATE mldsa slhdsa)
+    target_include_directories(pqc_token_verify PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
 endif()
 
 # ============================================================================

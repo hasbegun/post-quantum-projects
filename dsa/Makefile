@@ -287,6 +287,16 @@ test-keygen-py: build-py
 test-keygen-cpp: build-cpp
 	docker run --rm $(IMAGE_NAME_CPP) ./build/test_keygen
 
+# Example Use Case Tests
+test-examples: test-examples-code-signing
+
+test-examples-code-signing: build-py
+	@echo "Running code signing example tests..."
+	docker run --rm \
+		-v $(PWD)/tests/examples:/app/tests/examples \
+		-v $(PWD)/examples/use-cases:/app/examples/use-cases \
+		$(IMAGE_NAME_PY) python -m pytest /app/tests/examples/test_code_signing.py -v
+
 # Constant-Time Verification Tests (dudect methodology)
 # Tests that cryptographic operations don't leak timing information
 CT_BUILD_DIR := build-ct

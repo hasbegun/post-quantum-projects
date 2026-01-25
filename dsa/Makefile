@@ -4,7 +4,7 @@
         test-mlkem test-mlkem-py test-mlkem-cpp \
         test-kat test-kat-mldsa test-kat-slhdsa \
         test-keygen test-keygen-py test-keygen-cpp \
-        test-local test-constant-time test-simd test-fips test-streaming test-hsm test-ossl test-jose \
+        test-local test-constant-time test-simd test-fips test-streaming test-hsm test-ossl test-jose test-composite \
         fuzz fuzz-build fuzz-mldsa fuzz-slhdsa fuzz-mlkem \
         fuzz-local fuzz-local-build fuzz-local-mldsa fuzz-local-slhdsa fuzz-local-mlkem \
         dev shell clean help \
@@ -67,6 +67,7 @@ help:
 	@echo "  make test-hsm           - Run HSM integration tests"
 	@echo "  make test-ossl          - Run OpenSSL provider tests"
 	@echo "  make test-jose          - Run JOSE/COSE support tests (JWT/COSE_Sign1)"
+	@echo "  make test-composite     - Run X.509 composite certificate tests"
 	@echo ""
 	@echo "Fuzz Testing (Docker):"
 	@echo "  make fuzz               - Run all fuzzers in container (60s each)"
@@ -474,6 +475,20 @@ test-jose:
 	@echo "Tests JWS (JWT) and COSE_Sign1 with PQC algorithms."
 	@echo ""
 	./$(BUILD_DIR)/test_jose_cose
+
+# ============================================================================
+# X.509 Composite Certificate Tests
+# ============================================================================
+test-composite:
+	@echo "Building X.509 Composite Certificate tests..."
+	@mkdir -p $(BUILD_DIR)
+	cd $(BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+	cd $(BUILD_DIR) && make -j$(CMAKE_JOBS) test_composite
+	@echo ""
+	@echo "Running X.509 Composite Certificate tests..."
+	@echo "Tests composite ML-DSA + ECDSA/Ed25519 signatures and certificates."
+	@echo ""
+	./$(BUILD_DIR)/test_composite
 
 # ============================================================================
 # Fuzz Testing (requires LLVM Clang with libFuzzer + AddressSanitizer)

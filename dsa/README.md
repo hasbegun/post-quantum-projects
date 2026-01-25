@@ -88,6 +88,7 @@ This project implements the full FIPS 203, FIPS 204 and FIPS 205 specifications:
 - Pre-hash mode for large messages
 - Implicit rejection for ML-KEM decapsulation
 - **JOSE/COSE Support**: JWT tokens and COSE_Sign1 messages with PQC signatures
+- **X.509 Composite Certificates**: Hybrid ML-DSA + ECDSA/Ed25519 for dual-algorithm security
 
 ### 3. Dual Language Support
 

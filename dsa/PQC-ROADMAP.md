@@ -10,21 +10,15 @@ A tracking document for library features and NIST standards.
 |----------|-----------|-------------|-------|
 | **Phase 1: Quick Wins** | 5/5 | 0 | 5 |
 | **Phase 2: Medium Effort** | 5/5 | 0 | 5 |
-| **Phase 3: Standards Integration** | 1/2 | 0 | 2 |
+| **Phase 3: Standards Integration** | 2/2 | 0 | 2 |
 | **Phase 4: Larger Efforts** | 0/3 | 0 | 3 |
 | **Core Algorithms** | 3/3 | 0 | 3 |
 
-**Test Suites:** 18 passing (mldsa, slhdsa, mlkem, kat, keygen, constant-time, simd, pkcs8, x509, algorithm-factory, batch-verify, hybrid, fips-selftest, streaming, hsm, ossl-provider, jose-cose)
+**Test Suites:** 19 passing (mldsa, slhdsa, mlkem, kat, keygen, constant-time, simd, pkcs8, x509, algorithm-factory, batch-verify, hybrid, fips-selftest, streaming, hsm, ossl-provider, jose-cose, composite)
 
 ---
 
 ## Next Features
-
-### Immediate (Can Start Now)
-
-| Feature | Priority | Effort | Description |
-|---------|----------|--------|-------------|
-| **X.509 Composite Certs** | High | Medium | Hybrid PQC + classical certificates |
 
 ### Upcoming NIST Standards
 
@@ -190,6 +184,19 @@ A tracking document for library features and NIST standards.
 - [x] JWT claims extraction utilities
 - [x] JOSE/COSE tests (`make test-jose`)
 
+#### X.509 Composite Certificates
+- [x] Composite signature implementation (`common/composite.hpp`)
+- [x] ML-DSA + ECDSA P-256/P-384 combinations
+- [x] ML-DSA + Ed25519/Ed448 combinations
+- [x] IETF draft OIDs (draft-ietf-lamps-pq-composite-sigs-13)
+- [x] Factory function `pqc::create_composite_dsa()`
+- [x] Both signatures required for verification (defense in depth)
+- [x] Key splitting utilities for composite keys
+- [x] Signature splitting utilities for composite signatures
+- [x] Context string support
+- [x] X.509 certificate generation with composite signatures
+- [x] Composite certificate tests (`make test-composite`)
+
 ---
 
 ### API Header Files
@@ -207,6 +214,7 @@ A tracking document for library features and NIST standards.
 | `common/ossl_provider.hpp` | OpenSSL 3.x provider interface |
 | `common/jose.hpp` | JWS/JWT support for PQC |
 | `common/cose.hpp` | COSE_Sign1 support for PQC |
+| `common/composite.hpp` | Composite ML-DSA + ECDSA/Ed25519 signatures |
 | `common/fips_selftest.hpp` | FIPS 140-3 self-tests |
 | `common/pkcs8.hpp` | PKCS#8 key serialization |
 | `common/x509.hpp` | X.509 certificate generation |
@@ -433,11 +441,6 @@ From [NIST IR 8547](https://csrc.nist.gov/pubs/ir/8547/ipd):
 
 ## Implementation Priority Matrix
 
-### Ready Now
-| Project | Benefit | Effort | Status |
-|---------|---------|--------|--------|
-| **X.509 Composite Certs** | High | Medium | Ready to implement |
-
 ### Awaiting Standards
 | Project | Benefit | Effort | Timeline |
 |---------|---------|--------|----------|
@@ -448,6 +451,7 @@ From [NIST IR 8547](https://csrc.nist.gov/pubs/ir/8547/ipd):
 ### Completed
 | Project | Status |
 |---------|--------|
+| X.509 Composite Certs | ✅ Done |
 | JOSE/COSE Support | ✅ Done |
 | OpenSSL Provider | ✅ Done |
 | SIMD Optimization | ✅ Done |
@@ -529,6 +533,7 @@ make test-streaming      # Streaming API tests
 make test-hsm            # HSM integration tests
 make test-ossl           # OpenSSL provider tests
 make test-jose           # JOSE/COSE support tests
+make test-composite      # X.509 composite certificate tests
 
 # Fuzz testing
 make fuzz-local          # Run all fuzzers locally

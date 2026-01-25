@@ -308,3 +308,20 @@ target_include_directories(test_jose_cose PRIVATE
 )
 
 add_test(NAME jose_cose_tests COMMAND test_jose_cose)
+
+# X.509 Composite Certificate Test executable
+add_executable(test_composite
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../tests/cpp/test_composite.cpp
+)
+
+target_link_libraries(test_composite PRIVATE
+    mldsa
+    slhdsa
+    mlkem
+)
+
+target_include_directories(test_composite PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+add_test(NAME composite_tests COMMAND test_composite)

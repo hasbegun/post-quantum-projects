@@ -300,6 +300,25 @@ if(BUILD_TESTING)
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/timing
     )
     add_test(NAME constant_time_tests COMMAND test_constant_time)
+
+    # SIMD NTT Tests
+    # Detect AVX2 support
+    include(CheckCXXCompilerFlag)
+    check_cxx_compiler_flag("-mavx2" COMPILER_SUPPORTS_AVX2)
+
+    add_executable(test_simd tests/cpp/test_simd.cpp)
+    target_link_libraries(test_simd PRIVATE mldsa mlkem)
+    target_include_directories(test_simd PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+    if(COMPILER_SUPPORTS_AVX2)
+        target_compile_options(test_simd PRIVATE -mavx2)
+    endif()
+    add_test(NAME simd_tests COMMAND test_simd)
+
+    # PKCS#8 Key Format Tests
+    add_executable(test_pkcs8 tests/cpp/test_pkcs8.cpp)
+    target_link_libraries(test_pkcs8 PRIVATE mldsa slhdsa mlkem)
+    target_include_directories(test_pkcs8 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+    add_test(NAME pkcs8_tests COMMAND test_pkcs8)
 endif()
 
 # ============================================================================

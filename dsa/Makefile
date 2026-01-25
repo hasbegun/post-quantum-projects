@@ -4,7 +4,7 @@
         test-mlkem test-mlkem-py test-mlkem-cpp \
         test-kat test-kat-mldsa test-kat-slhdsa \
         test-keygen test-keygen-py test-keygen-cpp \
-        test-local test-constant-time \
+        test-local test-constant-time test-simd \
         fuzz fuzz-build fuzz-mldsa fuzz-slhdsa fuzz-mlkem \
         fuzz-local fuzz-local-build fuzz-local-mldsa fuzz-local-slhdsa fuzz-local-mlkem \
         dev shell clean help \
@@ -59,6 +59,7 @@ help:
 	@echo ""
 	@echo "Security Tests:"
 	@echo "  make test-constant-time - Run constant-time verification (dudect)"
+	@echo "  make test-simd          - Run SIMD correctness tests (AVX2/NEON)"
 	@echo ""
 	@echo "Fuzz Testing (Docker):"
 	@echo "  make fuzz               - Run all fuzzers in container (60s each)"
@@ -311,6 +312,35 @@ test-constant-time:
 	@echo "This tests for timing leaks in cryptographic operations."
 	@echo ""
 	./$(CT_BUILD_DIR)/test_constant_time
+
+# SIMD NTT Correctness Tests
+# Verifies AVX2/NEON implementations match scalar reference
+SIMD_BUILD_DIR := build-simd
+
+test-simd:
+	@echo "Building SIMD NTT correctness tests..."
+	@mkdir -p $(SIMD_BUILD_DIR)
+	cd $(SIMD_BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+	cd $(SIMD_BUILD_DIR) && make -j$(CMAKE_JOBS) test_simd
+	@echo ""
+	@echo "Running SIMD correctness tests..."
+	@echo "Verifies AVX2/NEON implementations match scalar reference."
+	@echo ""
+	./$(SIMD_BUILD_DIR)/test_simd
+
+# ============================================================================
+# PKCS#8 Key Format Tests
+# ============================================================================
+test-pkcs8:
+	@echo "Building PKCS#8 key format tests..."
+	@mkdir -p $(BUILD_DIR)
+	cd $(BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+	cd $(BUILD_DIR) && make -j$(CMAKE_JOBS) test_pkcs8
+	@echo ""
+	@echo "Running PKCS#8 key format tests..."
+	@echo "Verifies DER/PEM encoding for ML-DSA, SLH-DSA, ML-KEM."
+	@echo ""
+	./$(BUILD_DIR)/test_pkcs8
 
 # ============================================================================
 # Fuzz Testing (requires LLVM Clang with libFuzzer + AddressSanitizer)

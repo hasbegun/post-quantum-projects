@@ -319,6 +319,12 @@ if(BUILD_TESTING)
     target_link_libraries(test_pkcs8 PRIVATE mldsa slhdsa mlkem)
     target_include_directories(test_pkcs8 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
     add_test(NAME pkcs8_tests COMMAND test_pkcs8)
+
+    # X.509 Certificate Tests
+    add_executable(test_x509 tests/cpp/test_x509.cpp)
+    target_link_libraries(test_x509 PRIVATE mldsa slhdsa mlkem)
+    target_include_directories(test_x509 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+    add_test(NAME x509_tests COMMAND test_x509)
 endif()
 
 # ============================================================================

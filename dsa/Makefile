@@ -343,6 +343,20 @@ test-pkcs8:
 	./$(BUILD_DIR)/test_pkcs8
 
 # ============================================================================
+# X.509 Certificate Tests
+# ============================================================================
+test-x509:
+	@echo "Building X.509 certificate tests..."
+	@mkdir -p $(BUILD_DIR)
+	cd $(BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+	cd $(BUILD_DIR) && make -j$(CMAKE_JOBS) test_x509
+	@echo ""
+	@echo "Running X.509 certificate tests..."
+	@echo "Verifies PQC certificate generation, parsing, and verification."
+	@echo ""
+	./$(BUILD_DIR)/test_x509
+
+# ============================================================================
 # Fuzz Testing (requires LLVM Clang with libFuzzer + AddressSanitizer)
 # Apple's Clang doesn't include libFuzzer - must use Homebrew LLVM
 # Install: brew install llvm

@@ -23,6 +23,7 @@
 #include "../../src/cpp/mldsa/params.hpp"
 #include "../../src/cpp/mldsa/ntt.hpp"
 #include "../../src/cpp/mldsa/ntt_avx2.hpp"
+#include "../../src/cpp/mldsa/ntt_neon.hpp"
 
 // Test result tracking
 static int tests_passed = 0;
@@ -525,6 +526,167 @@ void test_mldsa_ntt_avx2() {
 #endif // SIMD_AVX2_COMPILED
 
 // ============================================================================
+// ML-DSA NEON Tests
+// ============================================================================
+
+#if SIMD_NEON_COMPILED
+
+void test_mldsa_ntt_neon() {
+    std::cout << "\n=== ML-DSA NEON NTT Tests ===" << std::endl;
+
+    if (!simd::has_neon()) {
+        std::cout << "  [SKIP] NEON not available on this CPU" << std::endl;
+        return;
+    }
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<int32_t> dist(0, mldsa::Q - 1);
+
+    // Test 1: NTT forward transform consistency
+    {
+        mldsa::Poly poly_scalar;
+        mldsa::Poly poly_neon;
+
+        for (size_t i = 0; i < mldsa::N; ++i) {
+            int32_t val = dist(gen);
+            poly_scalar[i] = val;
+            poly_neon[i] = val;
+        }
+
+        auto result_scalar = mldsa::ntt(poly_scalar);
+        mldsa::neon::ntt_neon(poly_neon);
+
+        bool match = true;
+        for (size_t i = 0; i < mldsa::N; ++i) {
+            if (mldsa::mod_q(result_scalar[i]) != mldsa::mod_q(poly_neon[i])) {
+                match = false;
+                break;
+            }
+        }
+        report("NTT forward transform", match);
+    }
+
+    // Test 2: NTT inverse transform consistency
+    {
+        mldsa::Poly poly_scalar;
+        mldsa::Poly poly_neon;
+
+        for (size_t i = 0; i < mldsa::N; ++i) {
+            int32_t val = dist(gen);
+            poly_scalar[i] = val;
+            poly_neon[i] = val;
+        }
+
+        auto result_scalar = mldsa::ntt_inv(poly_scalar);
+        mldsa::neon::ntt_inv_neon(poly_neon);
+
+        bool match = true;
+        for (size_t i = 0; i < mldsa::N; ++i) {
+            if (mldsa::mod_q(result_scalar[i]) != mldsa::mod_q(poly_neon[i])) {
+                match = false;
+                break;
+            }
+        }
+        report("NTT inverse transform", match);
+    }
+
+    // Test 3: Round-trip
+    {
+        mldsa::Poly original;
+        mldsa::Poly poly_neon;
+
+        for (size_t i = 0; i < mldsa::N; ++i) {
+            original[i] = dist(gen);
+            poly_neon[i] = original[i];
+        }
+
+        mldsa::neon::ntt_neon(poly_neon);
+        mldsa::neon::ntt_inv_neon(poly_neon);
+
+        bool match = true;
+        for (size_t i = 0; i < mldsa::N; ++i) {
+            if (mldsa::mod_q(original[i]) != mldsa::mod_q(poly_neon[i])) {
+                match = false;
+                break;
+            }
+        }
+        report("Round-trip NTT -> INTT", match);
+    }
+
+    // Test 4: Pointwise multiplication
+    {
+        mldsa::Poly a, b;
+
+        for (size_t i = 0; i < mldsa::N; ++i) {
+            a[i] = dist(gen);
+            b[i] = dist(gen);
+        }
+
+        auto a_ntt = mldsa::ntt(a);
+        auto b_ntt = mldsa::ntt(b);
+
+        auto c_scalar = mldsa::ntt_multiply(a_ntt, b_ntt);
+        auto c_neon = mldsa::neon::ntt_multiply_neon(a_ntt, b_ntt);
+
+        bool match = true;
+        for (size_t i = 0; i < mldsa::N; ++i) {
+            if (mldsa::mod_q(c_scalar[i]) != mldsa::mod_q(c_neon[i])) {
+                match = false;
+                break;
+            }
+        }
+        report("Pointwise multiplication", match);
+    }
+
+    // Test 5: Polynomial addition
+    {
+        mldsa::Poly a, b;
+
+        for (size_t i = 0; i < mldsa::N; ++i) {
+            a[i] = dist(gen);
+            b[i] = dist(gen);
+        }
+
+        auto c_scalar = mldsa::poly_add(a, b);
+        auto c_neon = mldsa::neon::poly_add_neon(a, b);
+
+        bool match = true;
+        for (size_t i = 0; i < mldsa::N; ++i) {
+            if (mldsa::mod_q(c_scalar[i]) != mldsa::mod_q(c_neon[i])) {
+                match = false;
+                break;
+            }
+        }
+        report("Polynomial addition", match);
+    }
+
+    // Test 6: Polynomial subtraction
+    {
+        mldsa::Poly a, b;
+
+        for (size_t i = 0; i < mldsa::N; ++i) {
+            a[i] = dist(gen);
+            b[i] = dist(gen);
+        }
+
+        auto c_scalar = mldsa::poly_sub(a, b);
+        auto c_neon = mldsa::neon::poly_sub_neon(a, b);
+
+        bool match = true;
+        for (size_t i = 0; i < mldsa::N; ++i) {
+            if (mldsa::mod_q(c_scalar[i]) != mldsa::mod_q(c_neon[i])) {
+                match = false;
+                break;
+            }
+        }
+        report("Polynomial subtraction", match);
+    }
+}
+
+#endif // SIMD_NEON_COMPILED
+
+// ============================================================================
 // Main
 // ============================================================================
 
@@ -544,6 +706,7 @@ int main() {
 
 #if SIMD_NEON_COMPILED
     test_mlkem_ntt_neon();
+    test_mldsa_ntt_neon();
 #else
     std::cout << "\n[INFO] NEON not compiled (not ARM64 platform)." << std::endl;
 #endif

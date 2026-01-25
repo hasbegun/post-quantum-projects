@@ -71,21 +71,21 @@ inline int16x8_t fqmul_neon(int16x8_t a, int16x8_t b) noexcept {
 
 /**
  * NEON Forward NTT
- * Uses the same algorithm as scalar but with SIMD for large layers
+ * Uses scalar implementation for correctness.
+ * The full NEON NTT requires complex Montgomery form handling.
  */
 inline void ntt_neon(std::array<int16_t, N>& f) noexcept {
-    // Use scalar implementation for correctness
-    // NEON optimization is complex due to zeta ordering
+    // Use the optimized scalar implementation
     Poly result = ntt(f);
     f = result;
 }
 
 /**
  * NEON Inverse NTT
+ * Uses scalar implementation for correctness.
  */
 inline void ntt_inv_neon(std::array<int16_t, N>& f) noexcept {
-    // Use scalar implementation for correctness
-    // NEON optimization is complex due to zeta ordering
+    // Use the optimized scalar implementation
     Poly result = ntt_inv(f);
     f = result;
 }

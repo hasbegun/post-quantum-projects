@@ -379,6 +379,18 @@ if(BUILD_TESTING)
     target_link_libraries(test_composite PRIVATE mldsa slhdsa mlkem)
     target_include_directories(test_composite PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
     add_test(NAME composite_tests COMMAND test_composite)
+
+    # Comprehensive Edge Case Tests
+    add_executable(test_edge_cases tests/cpp/test_edge_cases.cpp)
+    target_link_libraries(test_edge_cases PRIVATE mldsa slhdsa mlkem)
+    target_include_directories(test_edge_cases PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+    add_test(NAME edge_case_tests COMMAND test_edge_cases)
+
+    # Interoperability Tests
+    add_executable(test_interop tests/cpp/test_interop.cpp)
+    target_link_libraries(test_interop PRIVATE mldsa slhdsa mlkem)
+    target_include_directories(test_interop PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+    add_test(NAME interop_tests COMMAND test_interop)
 endif()
 
 # ============================================================================
@@ -420,6 +432,35 @@ if(BUILD_FUZZING)
         target_link_libraries(fuzz_mlkem_decaps PRIVATE mlkem)
         target_include_directories(fuzz_mlkem_decaps PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
         set_target_properties(fuzz_mlkem_decaps PROPERTIES
+            COMPILE_FLAGS "${FUZZER_FLAGS}"
+            LINK_FLAGS "${FUZZER_FLAGS}"
+        )
+
+        # ML-KEM encapsulation fuzzer
+        add_executable(fuzz_mlkem_encaps tests/fuzz/fuzz_mlkem_encaps.cpp)
+        target_link_libraries(fuzz_mlkem_encaps PRIVATE mlkem)
+        target_include_directories(fuzz_mlkem_encaps PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+        set_target_properties(fuzz_mlkem_encaps PROPERTIES
+            COMPILE_FLAGS "${FUZZER_FLAGS}"
+            LINK_FLAGS "${FUZZER_FLAGS}"
+        )
+
+        # Composite signature fuzzer
+        add_executable(fuzz_composite tests/fuzz/fuzz_composite.cpp)
+        target_link_libraries(fuzz_composite PRIVATE mldsa slhdsa mlkem)
+        target_include_directories(fuzz_composite PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+        target_link_libraries(fuzz_composite PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+        set_target_properties(fuzz_composite PROPERTIES
+            COMPILE_FLAGS "${FUZZER_FLAGS}"
+            LINK_FLAGS "${FUZZER_FLAGS}"
+        )
+
+        # ASN.1 parsing fuzzer
+        add_executable(fuzz_asn1 tests/fuzz/fuzz_asn1.cpp)
+        target_link_libraries(fuzz_asn1 PRIVATE mldsa slhdsa mlkem)
+        target_include_directories(fuzz_asn1 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+        target_link_libraries(fuzz_asn1 PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+        set_target_properties(fuzz_asn1 PROPERTIES
             COMPILE_FLAGS "${FUZZER_FLAGS}"
             LINK_FLAGS "${FUZZER_FLAGS}"
         )

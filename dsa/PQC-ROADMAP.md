@@ -14,7 +14,7 @@ A tracking document for library features and NIST standards.
 | **Phase 4: Larger Efforts** | 0/3 | 0 | 3 |
 | **Core Algorithms** | 3/3 | 0 | 3 |
 
-**Test Suites:** 19 passing (mldsa, slhdsa, mlkem, kat, keygen, constant-time, simd, pkcs8, x509, algorithm-factory, batch-verify, hybrid, fips-selftest, streaming, hsm, ossl-provider, jose-cose, composite)
+**Test Suites:** 21 passing (mldsa, slhdsa, mlkem, kat, keygen, constant-time, simd, pkcs8, x509, algorithm-factory, batch-verify, hybrid, fips-selftest, streaming, hsm, ossl-provider, jose-cose, composite, edge-cases, interop)
 
 ---
 

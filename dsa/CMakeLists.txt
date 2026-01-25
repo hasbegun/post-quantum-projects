@@ -325,6 +325,48 @@ if(BUILD_TESTING)
     target_link_libraries(test_x509 PRIVATE mldsa slhdsa mlkem)
     target_include_directories(test_x509 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
     add_test(NAME x509_tests COMMAND test_x509)
+
+    # Runtime Algorithm Selection Tests
+    add_executable(test_algorithm_factory tests/cpp/test_algorithm_factory.cpp)
+    target_link_libraries(test_algorithm_factory PRIVATE mldsa slhdsa mlkem)
+    target_include_directories(test_algorithm_factory PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+    add_test(NAME algorithm_factory_tests COMMAND test_algorithm_factory)
+
+    # Batch Verification Tests
+    add_executable(test_batch_verify tests/cpp/test_batch_verify.cpp)
+    target_link_libraries(test_batch_verify PRIVATE mldsa slhdsa mlkem)
+    target_include_directories(test_batch_verify PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+    add_test(NAME batch_verify_tests COMMAND test_batch_verify)
+
+    # Hybrid Cryptography Tests
+    add_executable(test_hybrid tests/cpp/test_hybrid.cpp)
+    target_link_libraries(test_hybrid PRIVATE mldsa slhdsa mlkem OpenSSL::Crypto)
+    target_include_directories(test_hybrid PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+    add_test(NAME hybrid_tests COMMAND test_hybrid)
+
+    # FIPS 140-3 Self-Test Tests
+    add_executable(test_fips_selftest tests/cpp/test_fips_selftest.cpp)
+    target_link_libraries(test_fips_selftest PRIVATE mldsa slhdsa mlkem)
+    target_include_directories(test_fips_selftest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+    add_test(NAME fips_selftest_tests COMMAND test_fips_selftest)
+
+    # Streaming API Tests
+    add_executable(test_streaming tests/cpp/test_streaming.cpp)
+    target_link_libraries(test_streaming PRIVATE mldsa slhdsa mlkem OpenSSL::Crypto)
+    target_include_directories(test_streaming PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+    add_test(NAME streaming_tests COMMAND test_streaming)
+
+    # HSM Integration Tests
+    add_executable(test_hsm tests/cpp/test_hsm.cpp)
+    target_link_libraries(test_hsm PRIVATE mldsa slhdsa mlkem)
+    target_include_directories(test_hsm PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+    add_test(NAME hsm_tests COMMAND test_hsm)
+
+    # OpenSSL Provider Tests
+    add_executable(test_ossl_provider tests/cpp/test_ossl_provider.cpp)
+    target_link_libraries(test_ossl_provider PRIVATE mldsa slhdsa mlkem)
+    target_include_directories(test_ossl_provider PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+    add_test(NAME ossl_provider_tests COMMAND test_ossl_provider)
 endif()
 
 # ============================================================================

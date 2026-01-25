@@ -4,7 +4,7 @@
         test-mlkem test-mlkem-py test-mlkem-cpp \
         test-kat test-kat-mldsa test-kat-slhdsa \
         test-keygen test-keygen-py test-keygen-cpp \
-        test-local test-constant-time test-simd \
+        test-local test-constant-time test-simd test-fips test-streaming test-hsm test-ossl \
         fuzz fuzz-build fuzz-mldsa fuzz-slhdsa fuzz-mlkem \
         fuzz-local fuzz-local-build fuzz-local-mldsa fuzz-local-slhdsa fuzz-local-mlkem \
         dev shell clean help \
@@ -355,6 +355,104 @@ test-x509:
 	@echo "Verifies PQC certificate generation, parsing, and verification."
 	@echo ""
 	./$(BUILD_DIR)/test_x509
+
+# ============================================================================
+# Runtime Algorithm Selection Tests
+# ============================================================================
+test-factory:
+	@echo "Building runtime algorithm selection tests..."
+	@mkdir -p $(BUILD_DIR)
+	cd $(BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+	cd $(BUILD_DIR) && make -j$(CMAKE_JOBS) test_algorithm_factory
+	@echo ""
+	@echo "Running runtime algorithm selection tests..."
+	@echo "Verifies factory pattern for ML-DSA, SLH-DSA, ML-KEM."
+	@echo ""
+	./$(BUILD_DIR)/test_algorithm_factory
+
+# ============================================================================
+# Batch Verification Tests
+# ============================================================================
+test-batch:
+	@echo "Building batch verification tests..."
+	@mkdir -p $(BUILD_DIR)
+	cd $(BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+	cd $(BUILD_DIR) && make -j$(CMAKE_JOBS) test_batch_verify
+	@echo ""
+	@echo "Running batch verification tests..."
+	@echo "Verifies parallel and sequential batch verification for PQC signatures."
+	@echo ""
+	./$(BUILD_DIR)/test_batch_verify
+
+# ============================================================================
+# Hybrid Cryptography Tests
+# ============================================================================
+test-hybrid:
+	@echo "Building hybrid cryptography tests..."
+	@mkdir -p $(BUILD_DIR)
+	cd $(BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+	cd $(BUILD_DIR) && make -j$(CMAKE_JOBS) test_hybrid
+	@echo ""
+	@echo "Running hybrid cryptography tests..."
+	@echo "Verifies ML-DSA+ECDSA/Ed25519 and ML-KEM+X25519/ECDH-P256 combinations."
+	@echo ""
+	./$(BUILD_DIR)/test_hybrid
+
+# ============================================================================
+# FIPS 140-3 Self-Test Tests
+# ============================================================================
+test-fips:
+	@echo "Building FIPS 140-3 self-test tests..."
+	@mkdir -p $(BUILD_DIR)
+	cd $(BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+	cd $(BUILD_DIR) && make -j$(CMAKE_JOBS) test_fips_selftest
+	@echo ""
+	@echo "Running FIPS 140-3 self-tests..."
+	@echo "Verifies KAT and PCT for ML-DSA, SLH-DSA, ML-KEM."
+	@echo ""
+	./$(BUILD_DIR)/test_fips_selftest
+
+# ============================================================================
+# Streaming API Tests
+# ============================================================================
+test-streaming:
+	@echo "Building streaming API tests..."
+	@mkdir -p $(BUILD_DIR)
+	cd $(BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+	cd $(BUILD_DIR) && make -j$(CMAKE_JOBS) test_streaming
+	@echo ""
+	@echo "Running streaming API tests..."
+	@echo "Tests HashML-DSA and HashSLH-DSA pre-hash modes for large message signing."
+	@echo ""
+	./$(BUILD_DIR)/test_streaming
+
+# ============================================================================
+# HSM Integration Tests
+# ============================================================================
+test-hsm:
+	@echo "Building HSM integration tests..."
+	@mkdir -p $(BUILD_DIR)
+	cd $(BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+	cd $(BUILD_DIR) && make -j$(CMAKE_JOBS) test_hsm
+	@echo ""
+	@echo "Running HSM integration tests..."
+	@echo "Tests PKCS#11-inspired HSM interface with software token."
+	@echo ""
+	./$(BUILD_DIR)/test_hsm
+
+# ============================================================================
+# OpenSSL Provider Tests
+# ============================================================================
+test-ossl:
+	@echo "Building OpenSSL provider tests..."
+	@mkdir -p $(BUILD_DIR)
+	cd $(BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+	cd $(BUILD_DIR) && make -j$(CMAKE_JOBS) test_ossl_provider
+	@echo ""
+	@echo "Running OpenSSL provider tests..."
+	@echo "Tests OpenSSL 3.x-style provider interface for PQC algorithms."
+	@echo ""
+	./$(BUILD_DIR)/test_ossl_provider
 
 # ============================================================================
 # Fuzz Testing (requires LLVM Clang with libFuzzer + AddressSanitizer)

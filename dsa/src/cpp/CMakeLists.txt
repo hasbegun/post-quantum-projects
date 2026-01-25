@@ -291,3 +291,20 @@ target_link_libraries(benchmark PRIVATE
 target_include_directories(benchmark PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
+
+# JOSE/COSE Support Test executable
+add_executable(test_jose_cose
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../tests/cpp/test_jose_cose.cpp
+)
+
+target_link_libraries(test_jose_cose PRIVATE
+    mldsa
+    slhdsa
+    mlkem
+)
+
+target_include_directories(test_jose_cose PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+add_test(NAME jose_cose_tests COMMAND test_jose_cose)

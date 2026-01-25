@@ -11,6 +11,10 @@ High-performance Python and C++ implementations of NIST post-quantum cryptograph
 **Key Encapsulation:**
 - **ML-KEM (FIPS 203)**: Lattice-based key encapsulation for secure key exchange
 
+**Token Standards:**
+- **JOSE Support**: JWT/JWS tokens with post-quantum signatures
+- **COSE Support**: CBOR-based tokens for IoT applications
+
 **Implementation:**
 - **Native C++ Performance**: pybind11 bindings for optimal speed
 - **Type Hints**: Full IDE support with `.pyi` stubs
@@ -49,6 +53,21 @@ shared_secret_alice = kem.decaps(dk, ciphertext)
 
 # Both now share the same secret for symmetric encryption
 assert shared_secret_bob == shared_secret_alice
+```
+
+### JWT with Post-Quantum Signatures (C++)
+```cpp
+#include "common/jose.hpp"
+#include "mldsa/mldsa.hpp"
+
+// Generate keys
+mldsa::MLDSA65 dsa;
+auto [pk, sk] = dsa.keygen();
+
+// Create and verify JWT
+std::string payload = R"({"sub":"user123"})";
+std::string token = jose::create_jwt("ML-DSA-65", payload, sk);
+auto result = jose::verify_jwt(token, pk);  // Returns payload if valid
 ```
 
 ## Installation
@@ -92,4 +111,5 @@ make test
 - [ML-DSA API](api/mldsa.md)
 - [SLH-DSA API](api/slhdsa.md)
 - [ML-KEM API](api/mlkem.md)
+- [JOSE/COSE API](api/jose_cose.md)
 - [Building from Source](dev/building.md)

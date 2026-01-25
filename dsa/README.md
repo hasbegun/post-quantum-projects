@@ -87,6 +87,7 @@ This project implements the full FIPS 203, FIPS 204 and FIPS 205 specifications:
 - Context strings for domain separation
 - Pre-hash mode for large messages
 - Implicit rejection for ML-KEM decapsulation
+- **JOSE/COSE Support**: JWT tokens and COSE_Sign1 messages with PQC signatures
 
 ### 3. Dual Language Support
 
@@ -641,7 +642,56 @@ make keygen-cpp ALG=mldsa65 OUT=mykey PASSWORD=mysecret
 make sign-cpp ALG=mldsa65 SK=./keys/mykey_secret.key MSG=document.txt PASSWORD=mysecret
 ```
 
-### Example 9: Multi-Container Demo App
+### Example 9: JWT Tokens with Post-Quantum Signatures (C++)
+
+Create and verify JSON Web Tokens (JWT) signed with post-quantum algorithms.
+
+**Why PQC JWT?** Future-proof your authentication tokens against quantum attacks.
+
+```cpp
+#include "common/jose.hpp"
+
+// Create a JWT signed with ML-DSA-65
+auto dsa = pqc::create_dsa("ML-DSA-65");
+auto [pk, sk] = dsa->keygen();
+
+// Create and sign a JWT
+std::string jwt = jose::create_jwt(
+    "ML-DSA-65",
+    R"({"sub":"user@example.com","exp":1700000000,"role":"admin"})",
+    sk
+);
+// Result: eyJhbGciOiJNTC1EU0EtNjUiLCJ0eXAiOiJKV1QifQ.eyJzdWIiOi...
+
+// Verify and extract payload
+auto payload = jose::verify_jwt(jwt, pk);
+if (payload) {
+    std::cout << "Valid JWT payload: " << *payload << std::endl;
+}
+```
+
+**COSE_Sign1 Messages:**
+```cpp
+#include "common/cose.hpp"
+
+// Create COSE_Sign1 (compact binary format for IoT/constrained devices)
+std::vector<uint8_t> payload = {'d', 'a', 't', 'a'};
+auto signed_msg = cose::sign1("ML-DSA-65", payload, sk);
+
+// Verify
+auto verified_payload = cose::verify1(signed_msg, pk);
+```
+
+**Supported Algorithms:**
+- ML-DSA-44, ML-DSA-65, ML-DSA-87
+- All 12 SLH-DSA parameter sets
+
+**Run tests:**
+```bash
+make test-jose
+```
+
+### Example 10: Multi-Container Demo App
 
 A complete client/server demo showing how post-quantum signatures work in distributed systems.
 
@@ -1001,6 +1051,7 @@ auto ss2 = mlkem_decaps(MLKEM768_PARAMS, dk, ct);
 | `make test-kat` | Run NIST KAT tests (C++) |
 | `make test-kat-mldsa` | Run ML-DSA NIST KAT tests |
 | `make test-kat-slhdsa` | Run SLH-DSA NIST KAT tests |
+| `make test-jose` | Run JOSE/COSE tests (JWT, COSE_Sign1) |
 | **Test (Local)** | |
 | `make test-local` | Build and run all C++ tests locally |
 | **Demo** | |

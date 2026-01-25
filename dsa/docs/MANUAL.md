@@ -15,17 +15,20 @@ This manual covers installation, key generation, certificate creation, and integ
 5. [Signing Tool](#signing-tool)
 6. [Signing and Verification](#signing-and-verification)
 7. [Key Exchange with ML-KEM](#key-exchange-with-ml-kem)
-8. [Use Cases](#use-cases)
+8. [JOSE/COSE Token Support](#josecose-token-support)
+   - [JWT with Post-Quantum Signatures](#jwt-with-post-quantum-signatures)
+   - [COSE Messages](#cose-messages)
+9. [Use Cases](#use-cases)
    - [API Authentication](#api-authentication)
    - [Document Signing](#document-signing)
    - [Firmware Signing](#firmware-signing)
    - [Code Signing](#code-signing)
    - [Secure Key Exchange](#secure-key-exchange)
-9. [Web Server Integration](#web-server-integration)
-   - [Nginx Integration](#nginx-integration)
-   - [Caddy Integration](#caddy-integration)
-10. [Programming Examples](#programming-examples)
-11. [Security Considerations](#security-considerations)
+10. [Web Server Integration](#web-server-integration)
+    - [Nginx Integration](#nginx-integration)
+    - [Caddy Integration](#caddy-integration)
+11. [Programming Examples](#programming-examples)
+12. [Security Considerations](#security-considerations)
 
 ---
 
@@ -144,6 +147,7 @@ sudo make install
 | `test_mlkem` | ML-KEM test suite |
 | `test_mldsa_kat` | ML-DSA NIST KAT tests |
 | `test_slhdsa_kat` | SLH-DSA NIST KAT tests |
+| `test_jose_cose` | JOSE/COSE token support tests |
 | `mldsa_cert_example` | ML-DSA certificate example |
 | `slhdsa_cert_example` | SLH-DSA certificate example |
 | `libmldsa.a` | ML-DSA static library |
@@ -815,6 +819,208 @@ make mlkem-demo
 make test-mlkem      # Python tests
 make test-mlkem-cpp  # C++ tests
 ```
+
+---
+
+## JOSE/COSE Token Support
+
+This library provides standards-based token support for post-quantum signatures:
+
+- **JOSE (JSON Object Signing and Encryption)** - JWS/JWT tokens for web APIs
+- **COSE (CBOR Object Signing and Encryption)** - Compact binary tokens for IoT
+
+### JWT with Post-Quantum Signatures
+
+Create and verify JWT (JSON Web Tokens) with ML-DSA and SLH-DSA signatures.
+
+#### Quick Example (C++)
+
+```cpp
+#include "common/jose.hpp"
+#include "mldsa/mldsa.hpp"
+
+// Generate keys
+mldsa::MLDSA65 dsa;
+auto [pk, sk] = dsa.keygen();
+
+// Create JWT
+std::string payload = R"({"sub":"user123","iss":"myapp"})";
+std::string token = jose::create_jwt("ML-DSA-65", payload, sk);
+
+// Verify JWT
+auto result = jose::verify_jwt(token, pk);
+if (result) {
+    std::cout << "Valid JWT with payload: " << *result << "\n";
+}
+```
+
+#### JWT Structure
+
+JWT tokens use compact serialization: `header.payload.signature`
+
+```
+eyJhbGciOiJNTC1EU0EtNjUiLCJ0eXAiOiJKV1QifQ.eyJzdWIiOiJ1c2VyMTIzIn0.PQ_SIGNATURE_BASE64URL
+```
+
+Components:
+- **Header**: `{"alg":"ML-DSA-65","typ":"JWT"}` (base64url encoded)
+- **Payload**: Claims JSON (base64url encoded)
+- **Signature**: ML-DSA/SLH-DSA signature over `header.payload`
+
+#### Supported Algorithms
+
+| Algorithm | JWS `alg` Value | Security Level |
+|-----------|----------------|----------------|
+| ML-DSA-44 | `ML-DSA-44` | 128-bit (Cat 1) |
+| ML-DSA-65 | `ML-DSA-65` | 192-bit (Cat 3) |
+| ML-DSA-87 | `ML-DSA-87` | 256-bit (Cat 5) |
+| SLH-DSA-SHAKE-128f | `SLH-DSA-SHAKE-128f` | 128-bit |
+| SLH-DSA-SHAKE-128s | `SLH-DSA-SHAKE-128s` | 128-bit |
+| SLH-DSA-SHAKE-192f | `SLH-DSA-SHAKE-192f` | 192-bit |
+| SLH-DSA-SHAKE-192s | `SLH-DSA-SHAKE-192s` | 192-bit |
+| SLH-DSA-SHAKE-256f | `SLH-DSA-SHAKE-256f` | 256-bit |
+| SLH-DSA-SHAKE-256s | `SLH-DSA-SHAKE-256s` | 256-bit |
+
+#### Builder API for Custom JWS
+
+```cpp
+#include "common/jose.hpp"
+
+// Create JWS with custom headers
+jose::JWSBuilder builder("ML-DSA-65", sk);
+builder.header("kid", "key-2024-01");  // Key ID
+builder.header("iat", std::to_string(time(nullptr)));  // Issued at
+
+std::string jws = builder.sign("payload data");
+
+// Verify with context (optional domain separation)
+std::vector<uint8_t> ctx = {'a', 'p', 'i'};
+jose::JWSVerifier verifier(pk, ctx);
+auto payload = verifier.verify(jws);
+```
+
+#### Authentication Flow Example
+
+```cpp
+// Server: Issue JWT after login
+std::string issue_token(const std::string& user_id) {
+    std::string claims = R"({"sub":")" + user_id + R"(","exp":)" +
+                         std::to_string(time(nullptr) + 3600) + "}";
+    return jose::create_jwt("ML-DSA-65", claims, server_secret_key);
+}
+
+// Server: Validate incoming JWT
+bool authenticate(const std::string& token) {
+    auto result = jose::verify_jwt(token, server_public_key);
+    if (!result) return false;
+
+    // Parse claims and check expiration
+    auto claims = jose::detail::parse_json(*result);
+    if (claims.count("exp")) {
+        int64_t exp = std::stoll(claims["exp"]);
+        if (time(nullptr) > exp) return false;  // Expired
+    }
+    return true;
+}
+```
+
+### COSE Messages
+
+COSE (CBOR Object Signing and Encryption) provides compact binary tokens, ideal for IoT and constrained devices.
+
+#### Quick Example (C++)
+
+```cpp
+#include "common/cose.hpp"
+#include "mldsa/mldsa.hpp"
+
+// Generate keys
+mldsa::MLDSA65 dsa;
+auto [pk, sk] = dsa.keygen();
+
+// Create COSE_Sign1 message
+std::vector<uint8_t> payload = {'H', 'e', 'l', 'l', 'o'};
+auto cose_msg = cose::sign1("ML-DSA-65", payload, sk);
+
+// Verify COSE_Sign1 message
+auto result = cose::verify1(cose_msg, pk);
+if (result) {
+    std::cout << "Valid COSE message\n";
+}
+```
+
+#### COSE_Sign1 Structure
+
+```
+COSE_Sign1 = [
+    protected: bstr,     ; CBOR-encoded protected headers
+    unprotected: {},     ; Unprotected headers (empty)
+    payload: bstr,       ; The payload
+    signature: bstr      ; The PQ signature
+]
+```
+
+#### COSE Algorithm IDs
+
+| Algorithm | COSE `alg` ID | Notes |
+|-----------|--------------|-------|
+| ML-DSA-44 | -48 | Proposed |
+| ML-DSA-65 | -49 | Proposed |
+| ML-DSA-87 | -50 | Proposed |
+| SLH-DSA-SHAKE-128f | -51 | Proposed |
+| SLH-DSA-SHAKE-128s | -52 | Proposed |
+| SLH-DSA-SHAKE-192f | -53 | Proposed |
+| SLH-DSA-SHAKE-192s | -54 | Proposed |
+| SLH-DSA-SHAKE-256f | -55 | Proposed |
+| SLH-DSA-SHAKE-256s | -56 | Proposed |
+
+#### Advanced COSE Features
+
+```cpp
+#include "common/cose.hpp"
+
+// With External Additional Authenticated Data (AAD)
+std::vector<uint8_t> external_aad = {'c', 'o', 'n', 't', 'e', 'x', 't'};
+auto signed_msg = cose::sign1("ML-DSA-65", payload, sk, external_aad);
+auto verified = cose::verify1(signed_msg, pk, external_aad);
+
+// With context for domain separation
+std::vector<uint8_t> ctx = {'i', 'o', 't'};
+auto msg = cose::sign1("ML-DSA-65", payload, sk, {}, ctx);
+auto result = cose::verify1(msg, pk, {}, ctx);
+
+// Detached payload mode
+cose::Sign1 cose_struct;
+cose_struct.protected_header = cose::cbor::encode_map({
+    {1, cose::cbor::encode_negative(-49)}  // alg: ML-DSA-65
+});
+cose_struct.payload = {};  // Detached
+cose_struct.external_aad = {};
+
+auto sig_structure = cose_struct.create_to_be_signed(actual_payload);
+// Sign sig_structure instead
+```
+
+### Running JOSE/COSE Tests
+
+```bash
+# Build and run JOSE/COSE tests
+make test-jose
+
+# Or with Docker
+docker run --rm dsa-cpp ./build/test_jose_cose
+```
+
+### When to Use JWT vs COSE
+
+| Use Case | Recommended | Reason |
+|----------|-------------|--------|
+| Web APIs | JWT/JWS | JSON-based, widely supported |
+| IoT devices | COSE | Compact binary, low bandwidth |
+| Mobile apps | JWT/JWS | Easy JSON parsing |
+| Embedded systems | COSE | Minimal memory footprint |
+| Interoperability | JWT/JWS | Better library support |
+| Constrained networks | COSE | Smaller message size |
 
 ---
 

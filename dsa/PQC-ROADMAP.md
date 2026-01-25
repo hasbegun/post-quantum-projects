@@ -10,10 +10,11 @@ A tracking document for library features and NIST standards.
 |----------|-----------|-------------|-------|
 | **Phase 1: Quick Wins** | 5/5 | 0 | 5 |
 | **Phase 2: Medium Effort** | 5/5 | 0 | 5 |
-| **Phase 3: Larger Efforts** | 0/3 | 0 | 3 |
+| **Phase 3: Standards Integration** | 1/2 | 0 | 2 |
+| **Phase 4: Larger Efforts** | 0/3 | 0 | 3 |
 | **Core Algorithms** | 3/3 | 0 | 3 |
 
-**Test Suites:** 17 passing (mldsa, slhdsa, mlkem, kat, keygen, constant-time, simd, pkcs8, x509, algorithm-factory, batch-verify, hybrid, fips-selftest, streaming, hsm, ossl-provider)
+**Test Suites:** 18 passing (mldsa, slhdsa, mlkem, kat, keygen, constant-time, simd, pkcs8, x509, algorithm-factory, batch-verify, hybrid, fips-selftest, streaming, hsm, ossl-provider, jose-cose)
 
 ---
 
@@ -23,7 +24,6 @@ A tracking document for library features and NIST standards.
 
 | Feature | Priority | Effort | Description |
 |---------|----------|--------|-------------|
-| **JOSE/COSE Support** | High | Medium | JWT/CWT tokens with PQC signatures |
 | **X.509 Composite Certs** | High | Medium | Hybrid PQC + classical certificates |
 
 ### Upcoming NIST Standards
@@ -173,6 +173,23 @@ A tracking document for library features and NIST standards.
 - [x] Default provider singleton with automatic initialization
 - [x] OpenSSL provider tests (`make test-ossl`)
 
+#### JOSE/COSE Support
+- [x] JWS (JSON Web Signature) implementation (`common/jose.hpp`)
+- [x] JWT (JSON Web Token) creation and verification
+- [x] COSE_Sign1 (CBOR Object Signing) implementation (`common/cose.hpp`)
+- [x] Base64url encoding/decoding (RFC 4648)
+- [x] CBOR encoding/decoding for COSE messages
+- [x] All ML-DSA algorithms supported (ML-DSA-44, ML-DSA-65, ML-DSA-87)
+- [x] All SLH-DSA algorithms supported (12 parameter sets)
+- [x] Proposed COSE algorithm IDs (-48 to -62 for PQC)
+- [x] JWS builder with fluent API for token creation
+- [x] JWS verifier with claims extraction
+- [x] COSE_Sign1 with external AAD support
+- [x] COSE_Sign1 detached payload mode
+- [x] Context string support for ML-DSA signatures
+- [x] JWT claims extraction utilities
+- [x] JOSE/COSE tests (`make test-jose`)
+
 ---
 
 ### API Header Files
@@ -188,6 +205,8 @@ A tracking document for library features and NIST standards.
 | `common/streaming.hpp` | Pre-hash streaming API |
 | `common/hsm.hpp` | HSM/PKCS#11 integration |
 | `common/ossl_provider.hpp` | OpenSSL 3.x provider interface |
+| `common/jose.hpp` | JWS/JWT support for PQC |
+| `common/cose.hpp` | COSE_Sign1 support for PQC |
 | `common/fips_selftest.hpp` | FIPS 140-3 self-tests |
 | `common/pkcs8.hpp` | PKCS#8 key serialization |
 | `common/x509.hpp` | X.509 certificate generation |
@@ -377,23 +396,20 @@ This project currently implements:
 
 ---
 
-#### 6. OpenSSL Provider
+#### 6. OpenSSL Provider ✅ COMPLETED
 
 | Attribute | Details |
 |-----------|---------|
 | **Type** | Integration |
-| **Status** | OQS-Provider available |
+| **Status** | ✅ Implemented in `common/ossl_provider.hpp` |
 | **Benefit** | Drop-in OpenSSL compatibility |
 | **Use Cases** | Existing applications using OpenSSL |
-| **Difficulty** | Moderate |
 
-**Why Add:**
-- Enables existing applications to use PQC
-- Standard provider interface
-- Can wrap this library's implementation
-
-**References:**
-- [Open Quantum Safe - OQS Provider](https://github.com/open-quantum-safe/oqs-provider)
+**Implementation:**
+- `PQCProvider` class with algorithm registration
+- `KeyContext`, `SignContext`, `KemContext` classes
+- Support for all 18 PQC algorithms
+- Tests: `make test-ossl`
 
 ---
 
@@ -417,14 +433,25 @@ From [NIST IR 8547](https://csrc.nist.gov/pubs/ir/8547/ipd):
 
 ## Implementation Priority Matrix
 
-| Project | Benefit | Effort | Priority | Timeline |
-|---------|---------|--------|----------|----------|
-| FN-DSA (FALCON) | High | Medium | 1 | After FIPS 206 draft (2025) |
-| HQC | High | Medium | 2 | After draft (2026) |
-| JOSE/COSE Support | High | Medium | 3 | Can start now |
-| X.509 Certificates | High | High | 4 | Can start now |
-| Hybrid TLS | Medium | High | 5 | After X.509 |
-| OpenSSL Provider | Medium | Medium | 6 | Can start now |
+### Ready Now
+| Project | Benefit | Effort | Status |
+|---------|---------|--------|--------|
+| **X.509 Composite Certs** | High | Medium | Ready to implement |
+
+### Awaiting Standards
+| Project | Benefit | Effort | Timeline |
+|---------|---------|--------|----------|
+| FN-DSA (FALCON) | High | Medium | After FIPS 206 draft (2025-2026) |
+| HQC | High | Medium | After draft (2026-2027) |
+| Hybrid TLS | Medium | High | After X.509 composite |
+
+### Completed
+| Project | Status |
+|---------|--------|
+| JOSE/COSE Support | ✅ Done |
+| OpenSSL Provider | ✅ Done |
+| SIMD Optimization | ✅ Done |
+| All Phase 1 & 2 | ✅ Done |
 
 ---
 
@@ -501,6 +528,7 @@ make test-fips           # FIPS 140-3 self-tests
 make test-streaming      # Streaming API tests
 make test-hsm            # HSM integration tests
 make test-ossl           # OpenSSL provider tests
+make test-jose           # JOSE/COSE support tests
 
 # Fuzz testing
 make fuzz-local          # Run all fuzzers locally
@@ -509,4 +537,4 @@ make fuzz                # Run fuzzers in Docker
 
 ---
 
-*Last updated: January 2025*
+*Last updated: January 2026*

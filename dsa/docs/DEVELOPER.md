@@ -8,11 +8,12 @@ This guide provides detailed information for developers who want to understand, 
 2. [ML-DSA Implementation](#ml-dsa-implementation)
 3. [SLH-DSA Implementation](#slh-dsa-implementation)
 4. [Key Encryption](#key-encryption)
-5. [C++ API Reference](#c-api-reference)
-6. [Python API Reference](#python-api-reference)
-7. [Integration Examples](#integration-examples)
-8. [Building and Testing](#building-and-testing)
-9. [Extending the Library](#extending-the-library)
+5. [JOSE/COSE Support](#josecose-support)
+6. [C++ API Reference](#c-api-reference)
+7. [Python API Reference](#python-api-reference)
+8. [Integration Examples](#integration-examples)
+9. [Building and Testing](#building-and-testing)
+10. [Extending the Library](#extending-the-library)
 
 ---
 
@@ -442,6 +443,160 @@ if (pqc::is_encrypted_key(encrypted)) {
     auto decrypted = pqc::decrypt_secret_key(encrypted, password);
     // Use decrypted key...
 }
+```
+
+---
+
+## JOSE/COSE Support
+
+The library provides JWT (JSON Web Token) and COSE (CBOR Object Signing) support for PQC algorithms, enabling integration with web applications and IoT systems.
+
+### JWS (JSON Web Signature) API
+
+```cpp
+#include "common/jose.hpp"
+
+// Create a JWT with post-quantum signature
+auto dsa = pqc::create_dsa("ML-DSA-65");
+auto [pk, sk] = dsa->keygen();
+
+// Using the builder pattern
+jose::JWSBuilder builder;
+std::string jwt = builder
+    .set_algorithm("ML-DSA-65")
+    .set_type("JWT")
+    .set_key_id("key-123")
+    .set_payload(R"({"sub":"user@example.com","exp":1700000000})")
+    .sign(sk);
+
+// Using convenience function
+std::string jwt = jose::create_jwt(
+    "ML-DSA-65",
+    R"({"sub":"user","role":"admin"})",
+    sk
+);
+
+// Verify and extract payload
+auto payload = jose::verify_jwt(jwt, pk);
+if (payload) {
+    std::cout << "Payload: " << *payload << std::endl;
+}
+
+// Using verifier class for more control
+jose::JWSVerifier verifier(jwt);
+std::cout << "Algorithm: " << verifier.algorithm() << std::endl;
+std::cout << "Key ID: " << verifier.key_id() << std::endl;
+
+if (verifier.verify(pk)) {
+    auto sub = verifier.claim("sub");  // Extract claims
+}
+```
+
+### Supported JOSE Algorithms
+
+| Algorithm | Security Level | Standard |
+|-----------|----------------|----------|
+| ML-DSA-44 | Level 2 | FIPS 204 |
+| ML-DSA-65 | Level 3 | FIPS 204 |
+| ML-DSA-87 | Level 5 | FIPS 204 |
+| SLH-DSA-SHA2-128f | Level 1 | FIPS 205 |
+| SLH-DSA-SHA2-128s | Level 1 | FIPS 205 |
+| SLH-DSA-SHAKE-128f | Level 1 | FIPS 205 |
+| ... | ... | ... |
+
+### COSE_Sign1 API
+
+COSE provides a compact binary format ideal for IoT and constrained environments.
+
+```cpp
+#include "common/cose.hpp"
+
+// Create a COSE_Sign1 message
+auto dsa = pqc::create_dsa("ML-DSA-65");
+auto [pk, sk] = dsa->keygen();
+
+std::vector<uint8_t> payload = {'h', 'e', 'l', 'l', 'o'};
+
+// Sign
+auto signed_msg = cose::sign1("ML-DSA-65", payload, sk);
+
+// Verify
+auto verified_payload = cose::verify1(signed_msg, pk);
+if (verified_payload) {
+    // Use payload
+}
+
+// With External AAD (Additional Authenticated Data)
+std::vector<uint8_t> aad = {'c', 'o', 'n', 't', 'e', 'x', 't'};
+auto signed_with_aad = cose::sign1("ML-DSA-65", payload, sk, aad);
+auto verified = cose::verify1(signed_with_aad, pk, aad);
+
+// Detached payload (payload not included in message)
+auto detached_sig = cose::sign1_detached("ML-DSA-65", payload, sk);
+bool valid = cose::verify1_detached(detached_sig, payload, pk);
+```
+
+### COSE Algorithm IDs (Proposed)
+
+| Algorithm | COSE ID | Internal Name |
+|-----------|---------|---------------|
+| ML-DSA-44 | -48 | ML-DSA-44 |
+| ML-DSA-65 | -49 | ML-DSA-65 |
+| ML-DSA-87 | -50 | ML-DSA-87 |
+| SLH-DSA-SHA2-128s | -51 | SLH-DSA-SHA2-128s |
+| SLH-DSA-SHA2-128f | -52 | SLH-DSA-SHA2-128f |
+| ... | ... | ... |
+
+### CBOR Utilities
+
+Low-level CBOR encoding/decoding functions are available:
+
+```cpp
+#include "common/cose.hpp"
+
+std::vector<uint8_t> out;
+
+// Encode various CBOR types
+cose::cbor::encode_uint(out, 42);           // Unsigned integer
+cose::cbor::encode_int(out, -10);           // Negative integer
+cose::cbor::encode_bytes(out, data);        // Byte string
+cose::cbor::encode_text(out, "hello");      // Text string
+cose::cbor::encode_array_header(out, 3);    // Array of 3 items
+cose::cbor::encode_map_header(out, 2);      // Map with 2 pairs
+
+// Decode
+auto result = cose::cbor::decode_int(data);
+if (result) {
+    auto [value, bytes_consumed] = *result;
+}
+```
+
+### Base64url Utilities
+
+```cpp
+#include "common/jose.hpp"
+
+// Base64url encoding (URL-safe, no padding)
+std::vector<uint8_t> data = {0x01, 0x02, 0x03};
+std::string encoded = jose::detail::base64url_encode(data);
+
+// Decoding
+auto decoded = jose::detail::base64url_decode(encoded);
+```
+
+### Testing JOSE/COSE
+
+```bash
+# Run JOSE/COSE tests
+make test-jose
+
+# Tests include:
+# - Base64url encoding/decoding
+# - JWS creation and verification
+# - JWT claims extraction
+# - COSE_Sign1 with all algorithms
+# - External AAD
+# - Detached payloads
 ```
 
 ---

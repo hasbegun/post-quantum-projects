@@ -367,6 +367,12 @@ if(BUILD_TESTING)
     target_link_libraries(test_ossl_provider PRIVATE mldsa slhdsa mlkem)
     target_include_directories(test_ossl_provider PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
     add_test(NAME ossl_provider_tests COMMAND test_ossl_provider)
+
+    # JOSE/COSE Support Tests
+    add_executable(test_jose_cose tests/cpp/test_jose_cose.cpp)
+    target_link_libraries(test_jose_cose PRIVATE mldsa slhdsa mlkem)
+    target_include_directories(test_jose_cose PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp)
+    add_test(NAME jose_cose_tests COMMAND test_jose_cose)
 endif()
 
 # ============================================================================

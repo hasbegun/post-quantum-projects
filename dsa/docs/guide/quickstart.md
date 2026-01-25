@@ -184,6 +184,52 @@ if dsa.verify(sign_pk, ciphertext, signature):
     print("Authenticated key exchange successful!")
 ```
 
+## JWT Tokens with Post-Quantum Signatures (C++)
+
+Create standards-compliant JWT tokens with post-quantum signatures:
+
+```cpp
+#include "common/jose.hpp"
+#include "mldsa/mldsa.hpp"
+
+// Generate keys
+mldsa::MLDSA65 dsa;
+auto [pk, sk] = dsa.keygen();
+
+// Create JWT
+std::string payload = R"({"sub":"user123","iss":"myapp","exp":1735689600})";
+std::string token = jose::create_jwt("ML-DSA-65", payload, sk);
+
+// Verify JWT
+auto result = jose::verify_jwt(token, pk);
+if (result) {
+    std::cout << "Valid! Payload: " << *result << "\n";
+}
+```
+
+## COSE Messages for IoT (C++)
+
+For constrained devices, use COSE (compact binary format):
+
+```cpp
+#include "common/cose.hpp"
+#include "mldsa/mldsa.hpp"
+
+// Generate keys
+mldsa::MLDSA65 dsa;
+auto [pk, sk] = dsa.keygen();
+
+// Create COSE_Sign1 message
+std::vector<uint8_t> payload = {'H', 'e', 'l', 'l', 'o'};
+auto cose_msg = cose::sign1("ML-DSA-65", payload, sk);
+
+// Verify
+auto result = cose::verify1(cose_msg, pk);
+if (result) {
+    std::cout << "Valid COSE message\n";
+}
+```
+
 ## Next Steps
 
 - [ML-DSA API Reference](../api/mldsa.md)
